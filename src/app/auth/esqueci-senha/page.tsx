@@ -8,7 +8,7 @@ export default function EsqueciSenhaPage() {
         <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
           Finanças
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">C6 Pessoal</h1>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Financeiro</h1>
       </div>
       <Suspense>
         <ForgotPasswordForm />

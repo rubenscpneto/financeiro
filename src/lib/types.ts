@@ -24,6 +24,7 @@ export type Account = {
   last4: string | null
   currency: string
   is_active: boolean
+  pluggy_account_id: string | null
 }
 
 export type Category = {
@@ -57,6 +58,7 @@ export type Transaction = {
   installment: string | null
   external_hash: string
   source_category: string | null
+  source_type: AccountType | null
   notes: string | null
   is_transfer: boolean
 }
@@ -91,6 +93,11 @@ export type InvestmentPosition = {
   avg_price: number
   current_price: number
   as_of: string
+  purchase_date: string | null
+  rate: number | null
+  rate_type: string | null
+  amount_original: number | null
+  amount_withdrawal: number | null
   external_hash: string
 }
 
@@ -105,6 +112,16 @@ export type InvestmentMovement = {
   description: string | null
   amount: number
   external_hash: string
+}
+
+/** Live balances from Pluggy sync (Painel prefers these over txn sums). */
+export type BalanceSnapshot = {
+  user_id: string
+  account_id: string
+  source_type: AccountType
+  balance: number
+  pluggy_account_id: string | null
+  updated_at: string
 }
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {

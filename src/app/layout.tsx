@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "C6 Pessoal — Finanças",
-  description: "Gestão financeira pessoal com extratos do C6 Bank",
+  title: "Financeiro — Finanças",
+  description: "Gestão financeira pessoal via Open Finance (Meu Pluggy)",
 }
 
 export default function RootLayout({

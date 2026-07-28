@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/server"
 import {
   applyCategoryRules,
+  resolveCategoriesFromSource,
   isPasswordError,
   parseStatement,
   PASSWORD_HINT,
@@ -31,6 +32,7 @@ export type PreviewPayload = {
   transactions: (ParsedTransaction & { category_id?: string | null })[]
   positions: ParsedPosition[]
   movements: ParsedMovement[]
+  categories: { id: string; name: string }[]
 }
 
 function mapParseError(error: unknown): string {
@@ -134,13 +136,30 @@ export async function parseImportAction(formData: FormData): Promise<
     return { error: detail }
   }
 
-  const { data: rules } = await supabase
-    .from("category_rules")
-    .select("match_pattern, category_id, priority, account_type")
-    .eq("user_id", userId)
-    .order("priority", { ascending: true })
+  const [{ data: rules }, { data: categories }] = await Promise.all([
+    supabase
+      .from("category_rules")
+      .select("match_pattern, category_id, priority, account_type")
+      .eq("user_id", userId)
+      .order("priority", { ascending: true }),
+    supabase.from("categories").select("id, name, kind").eq("user_id", userId),
+  ])
 
-  const categoryMap = applyCategoryRules(
+  const fromSource = await resolveCategoriesFromSource(
+    parsed.transactions,
+    categories ?? [],
+    async (name, kind) => {
+      const { data, error } = await supabase
+        .from("categories")
+        .insert({ user_id: userId, name, kind })
+        .select("id")
+        .single()
+      if (error || !data) return null
+      return data.id as string
+    }
+  )
+
+  const fromRules = applyCategoryRules(
     parsed.transactions,
     rules ?? [],
     sourceType
@@ -148,8 +167,16 @@ export async function parseImportAction(formData: FormData): Promise<
 
   const transactions = parsed.transactions.map((t) => ({
     ...t,
-    category_id: categoryMap.get(t.externalHash) ?? null,
+    // Prefer category from file; fall back to user description rules
+    category_id:
+      fromSource.get(t.externalHash) ?? fromRules.get(t.externalHash) ?? null,
   }))
+
+  const { data: freshCategories } = await supabase
+    .from("categories")
+    .select("id, name")
+    .eq("user_id", userId)
+    .order("name")
 
   await supabase
     .from("imports")
@@ -169,6 +196,7 @@ export async function parseImportAction(formData: FormData): Promise<
       transactions,
       positions: parsed.positions,
       movements: parsed.movements,
+      categories: freshCategories ?? [],
     },
   }
 }
@@ -211,6 +239,7 @@ export async function commitImportAction(payload: {
       installment: t.installment ?? null,
       external_hash: t.externalHash,
       source_category: t.sourceCategory ?? null,
+      source_type: payload.sourceType,
       is_transfer: Boolean(t.isTransfer),
     }))
 
@@ -244,6 +273,11 @@ export async function commitImportAction(payload: {
       avg_price: p.avgPrice,
       current_price: p.currentPrice,
       as_of: p.asOf,
+      purchase_date: p.purchaseDate ?? null,
+      rate: p.rate ?? null,
+      rate_type: p.rateType ?? null,
+      amount_original: p.amountOriginal ?? null,
+      amount_withdrawal: p.amountWithdrawal ?? null,
       external_hash: p.externalHash,
       updated_at: new Date().toISOString(),
     }))

@@ -25,6 +25,12 @@ export function monthBounds(yearMonth: string) {
   return { start, end }
 }
 
+export function shiftYearMonth(yearMonth: string, deltaMonths: number) {
+  const [y, m] = yearMonth.split("-").map(Number)
+  const d = new Date(y, m - 1 + deltaMonths, 1)
+  return currentYearMonth(d)
+}
+
 export function cnSignClass(amount: number) {
   if (amount > 0) return "text-emerald-600 dark:text-emerald-400"
   if (amount < 0) return "text-red-600 dark:text-red-400"

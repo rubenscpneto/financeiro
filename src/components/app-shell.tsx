@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   ArrowLeftRight,
-  Wallet,
-  Upload,
   Tags,
   PiggyBank,
   Target,
@@ -35,8 +33,6 @@ import { Button } from "@/components/ui/button"
 const NAV = [
   { href: "/painel", label: "Painel", icon: LayoutDashboard },
   { href: "/transacoes", label: "Transações", icon: ArrowLeftRight },
-  { href: "/contas", label: "Contas", icon: Wallet },
-  { href: "/importar", label: "Importar", icon: Upload },
   { href: "/categorias", label: "Categorias", icon: Tags },
   { href: "/orcamentos", label: "Orçamentos", icon: PiggyBank },
   { href: "/metas", label: "Metas", icon: Target },
@@ -60,7 +56,7 @@ export function AppShell({
             <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               Finanças
             </span>
-            <span className="text-lg font-semibold tracking-tight">C6 Pessoal</span>
+            <span className="text-lg font-semibold tracking-tight">Financeiro</span>
           </Link>
         </SidebarHeader>
         <SidebarContent>

@@ -2,65 +2,12 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/server"
-import type { AccountType } from "@/lib/types"
 
 async function requireUser() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
   if (!data?.claims?.sub) throw new Error("Não autenticado")
   return { supabase, userId: data.claims.sub as string }
-}
-
-export async function createAccountAction(formData: FormData) {
-  const { supabase, userId } = await requireUser()
-  const name = String(formData.get("name") ?? "").trim()
-  const type = String(formData.get("type") ?? "checking") as AccountType
-  const last4 = String(formData.get("last4") ?? "").trim() || null
-
-  if (!name) return { error: "Informe o nome da conta." }
-
-  const { error } = await supabase.from("accounts").insert({
-    user_id: userId,
-    name,
-    type,
-    institution: "C6",
-    last4,
-  })
-
-  if (error) return { error: error.message }
-  revalidatePath("/contas")
-  return { ok: true }
-}
-
-export async function updateAccountAction(formData: FormData) {
-  const { supabase, userId } = await requireUser()
-  const id = String(formData.get("id") ?? "")
-  const name = String(formData.get("name") ?? "").trim()
-  const last4 = String(formData.get("last4") ?? "").trim() || null
-  const is_active = formData.get("is_active") === "on"
-
-  const { error } = await supabase
-    .from("accounts")
-    .update({ name, last4, is_active, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", userId)
-
-  if (error) return { error: error.message }
-  revalidatePath("/contas")
-  return { ok: true }
-}
-
-export async function deleteAccountAction(formData: FormData) {
-  const { supabase, userId } = await requireUser()
-  const id = String(formData.get("id") ?? "")
-  const { error } = await supabase
-    .from("accounts")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", userId)
-  if (error) return { error: error.message }
-  revalidatePath("/contas")
-  return { ok: true }
 }
 
 export async function createCategoryAction(formData: FormData) {

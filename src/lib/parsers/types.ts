@@ -21,6 +21,11 @@ export type ParsedPosition = {
   avgPrice: number
   currentPrice: number
   asOf: string
+  purchaseDate?: string | null
+  rate?: number | null
+  rateType?: string | null
+  amountOriginal?: number | null
+  amountWithdrawal?: number | null
   externalHash: string
 }
 

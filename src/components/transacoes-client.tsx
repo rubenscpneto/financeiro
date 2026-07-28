@@ -2,10 +2,16 @@
 
 import { useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { updateTransactionCategoryAction } from "@/lib/actions/crud"
 import type { Account, Category, Transaction } from "@/lib/types"
-import { formatBRL, formatDateBR, cnSignClass } from "@/lib/format"
+import {
+  formatBRL,
+  formatDateBR,
+  cnSignClass,
+  shiftYearMonth,
+} from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -24,51 +30,146 @@ type Row = Transaction & {
   categories?: { name: string } | null
 }
 
+function pushQuery(
+  router: ReturnType<typeof useRouter>,
+  base: URLSearchParams,
+  patch: Record<string, string | null>
+) {
+  const q = new URLSearchParams(base.toString())
+  for (const [k, v] of Object.entries(patch)) {
+    if (v == null || v === "") q.delete(k)
+    else q.set(k, v)
+  }
+  const qs = q.toString()
+  router.push(qs ? `/transacoes?${qs}` : "/transacoes")
+}
+
 export function TransacoesClient({
   transactions,
   accounts,
   categories,
+  yearMonth,
+  from,
+  to,
 }: {
   transactions: Row[]
   accounts: Account[]
   categories: Category[]
+  yearMonth: string | null
+  from: string
+  to: string
 }) {
   const [pending, start] = useTransition()
   const router = useRouter()
   const params = useSearchParams()
 
+  const accountId = params.get("account_id") ?? ""
+  const categoryId = params.get("category_id") ?? ""
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="flex flex-col gap-4 pt-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={!yearMonth}
+              onClick={() => {
+                if (!yearMonth) return
+                pushQuery(router, params, {
+                  mes: shiftYearMonth(yearMonth, -1),
+                  from: null,
+                  to: null,
+                })
+              }}
+            >
+              <ChevronLeft />
+            </Button>
+            <Input
+              type="month"
+              className="w-auto"
+              value={yearMonth ?? ""}
+              onChange={(e) => {
+                const mes = e.target.value
+                if (!mes) return
+                pushQuery(router, params, {
+                  mes,
+                  from: null,
+                  to: null,
+                })
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={!yearMonth}
+              onClick={() => {
+                if (!yearMonth) return
+                pushQuery(router, params, {
+                  mes: shiftYearMonth(yearMonth, 1),
+                  from: null,
+                  to: null,
+                })
+              }}
+            >
+              <ChevronRight />
+            </Button>
+            {!yearMonth ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  pushQuery(router, params, {
+                    mes: null,
+                    from: null,
+                    to: null,
+                  })
+                }
+              >
+                Voltar ao mês atual
+              </Button>
+            ) : null}
+          </div>
+
           <form
             className="flex flex-wrap items-end gap-3"
             onSubmit={(e) => {
               e.preventDefault()
               const fd = new FormData(e.currentTarget)
-              const q = new URLSearchParams()
               const account = String(fd.get("account_id") ?? "")
               const category = String(fd.get("category_id") ?? "")
-              const from = String(fd.get("from") ?? "")
-              const to = String(fd.get("to") ?? "")
+              const rangeFrom = String(fd.get("from") ?? "")
+              const rangeTo = String(fd.get("to") ?? "")
+              const q = new URLSearchParams()
               if (account) q.set("account_id", account)
               if (category) q.set("category_id", category)
-              if (from) q.set("from", from)
-              if (to) q.set("to", to)
+              if (rangeFrom || rangeTo) {
+                if (rangeFrom) q.set("from", rangeFrom)
+                if (rangeTo) q.set("to", rangeTo)
+              } else if (yearMonth) {
+                q.set("mes", yearMonth)
+              }
               router.push(`/transacoes?${q.toString()}`)
             }}
           >
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Conta</label>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                Conta
+              </label>
               <select
                 name="account_id"
-                defaultValue={params.get("account_id") ?? ""}
+                defaultValue={accountId}
                 className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
               >
                 <option value="">Todas</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
+                    {a.institution ? ` (${a.institution})` : ""}
                   </option>
                 ))}
               </select>
@@ -79,7 +180,7 @@ export function TransacoesClient({
               </label>
               <select
                 name="category_id"
-                defaultValue={params.get("category_id") ?? ""}
+                defaultValue={categoryId}
                 className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
               >
                 <option value="">Todas</option>
@@ -91,20 +192,24 @@ export function TransacoesClient({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">De</label>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                De
+              </label>
               <Input
                 type="date"
                 name="from"
-                defaultValue={params.get("from") ?? ""}
+                defaultValue={yearMonth ? "" : from}
                 className="w-auto"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Até</label>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                Até
+              </label>
               <Input
                 type="date"
                 name="to"
-                defaultValue={params.get("to") ?? ""}
+                defaultValue={yearMonth ? "" : to}
                 className="w-auto"
               />
             </div>
@@ -170,15 +275,20 @@ export function TransacoesClient({
                       ))}
                     </select>
                   </TableCell>
-                  <TableCell className={`text-right font-medium ${cnSignClass(Number(t.amount))}`}>
+                  <TableCell
+                    className={`text-right font-medium ${cnSignClass(Number(t.amount))}`}
+                  >
                     {formatBRL(Number(t.amount))}
                   </TableCell>
                 </TableRow>
               ))}
               {transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Nenhuma transação. Importe um extrato para começar.
+                  <TableCell
+                    colSpan={5}
+                    className="text-center text-muted-foreground"
+                  >
+                    Nenhuma transação neste período.
                   </TableCell>
                 </TableRow>
               ) : null}

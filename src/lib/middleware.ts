@@ -38,6 +38,8 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims()
   const user = data?.claims
   const path = request.nextUrl.pathname
+  const isPublicApi =
+    path.startsWith('/api/cron/') || path.startsWith('/api/webhooks/')
   const isAuthRoute =
     path.startsWith('/auth') || path.startsWith('/login')
   const authBounceWhenLoggedIn =
@@ -46,7 +48,7 @@ export async function updateSession(request: NextRequest) {
     path === '/auth/esqueci-senha' ||
     path.startsWith('/login')
 
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isPublicApi) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)

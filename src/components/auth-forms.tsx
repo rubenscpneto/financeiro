@@ -32,7 +32,7 @@ export function LoginForm() {
       <CardHeader>
         <CardTitle>Entrar</CardTitle>
         <CardDescription>
-          Acesse suas finanças C6 de qualquer lugar.
+          Acesse suas finanças de qualquer lugar.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -135,7 +135,7 @@ export function SignupForm() {
       <CardHeader>
         <CardTitle>Criar conta</CardTitle>
         <CardDescription>
-          Controle pessoal das suas finanças no C6.
+          Controle pessoal das suas finanças.
         </CardDescription>
       </CardHeader>
       <CardContent>

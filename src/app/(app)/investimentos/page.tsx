@@ -1,172 +1,128 @@
 import { createClient } from "@/lib/server"
-import { formatBRL } from "@/lib/format"
-import { ASSET_CLASS_LABELS, type InvestmentPosition, type InvestmentMovement, type AssetClass } from "@/lib/types"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+  type AssetClass,
+  type InvestmentMovement,
+  type InvestmentPosition,
+} from "@/lib/types"
+import { buildInvestmentEvolution } from "@/lib/investments/evolution"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+  formatRentabilidade,
+  positionCurrentValue,
+  positionInvestedValue,
+} from "@/lib/investments/value"
+import {
+  InvestimentosClient,
+  type AtivoView,
+  type MovimentoView,
+} from "@/components/investimentos-client"
+
+type PositionRow = InvestmentPosition & {
+  accounts: { institution: string } | { institution: string }[] | null
+}
+
+function institutionOf(p: PositionRow): string {
+  const acc = p.accounts
+  if (!acc) return ""
+  if (Array.isArray(acc)) return acc[0]?.institution ?? ""
+  return acc.institution ?? ""
+}
 
 export default async function InvestimentosPage() {
   const supabase = await createClient()
   const [{ data: positions }, { data: movements }] = await Promise.all([
     supabase
       .from("investment_positions")
-      .select("*")
+      .select("*, accounts(institution)")
       .order("asset_name"),
     supabase
       .from("investment_movements")
       .select("*")
-      .order("date", { ascending: false })
-      .limit(50),
+      .order("date", { ascending: false }),
   ])
 
-  const list = (positions ?? []) as InvestmentPosition[]
+  const list = (positions ?? []) as PositionRow[]
   const movs = (movements ?? []) as InvestmentMovement[]
 
-  const total = list.reduce(
-    (sum, p) => sum + Number(p.quantity) * Number(p.current_price),
-    0
+  const firstAporteByPosition = new Map<string, string>()
+  for (const m of [...movs].reverse()) {
+    if (m.type !== "aporte" || !m.position_id) continue
+    if (!firstAporteByPosition.has(m.position_id)) {
+      firstAporteByPosition.set(m.position_id, m.date)
+    }
+  }
+
+  let currentTotal = 0
+  const ativos: AtivoView[] = list.map((p) => {
+    const valorAtual = positionCurrentValue(p)
+    const valorInvestido = positionInvestedValue(p)
+    const rendimento = valorAtual - valorInvestido
+    const rendimentoPct =
+      valorInvestido > 0 ? (rendimento / valorInvestido) * 100 : null
+    currentTotal += valorAtual
+
+    const investedAt =
+      p.purchase_date ?? firstAporteByPosition.get(p.id) ?? p.as_of
+
+    return {
+      id: p.id,
+      assetName: p.asset_name,
+      ticker: p.ticker,
+      assetClass: p.asset_class as AssetClass,
+      institution: institutionOf(p),
+      investedAt,
+      rentabilidade: formatRentabilidade(
+        p.rate != null ? Number(p.rate) : null,
+        p.rate_type
+      ),
+      valorInvestido,
+      valorAtual,
+      rendimento,
+      rendimentoPct,
+      portfolioPct: 0,
+    }
+  })
+
+  for (const a of ativos) {
+    a.portfolioPct =
+      currentTotal > 0 ? (a.valorAtual / currentTotal) * 100 : 0
+  }
+
+  ativos.sort((a, b) => b.valorAtual - a.valorAtual)
+
+  const evolution = buildInvestmentEvolution(
+    currentTotal,
+    movs.map((m) => ({
+      date: m.date,
+      type: m.type,
+      amount: Number(m.amount) || 0,
+    })),
+    12
   )
 
-  const byClass = new Map<AssetClass, number>()
-  for (const p of list) {
-    const value = Number(p.quantity) * Number(p.current_price)
-    byClass.set(p.asset_class, (byClass.get(p.asset_class) ?? 0) + value)
-  }
+  const movimentos: MovimentoView[] = movs
+    .filter((m) => m.type === "aporte" || m.type === "resgate")
+    .map((m) => ({
+      id: m.id,
+      date: m.date,
+      type: m.type as "aporte" | "resgate",
+      amount: Number(m.amount) || 0,
+    }))
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Investimentos</h1>
         <p className="text-sm text-muted-foreground">
-          Posições e movimentos importados do C6 Invest.
+          Patrimônio, ativos e movimentações via Open Finance.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>Patrimônio investido</CardDescription>
-            <CardTitle className="text-2xl">{formatBRL(total)}</CardTitle>
-          </CardHeader>
-        </Card>
-        {[...byClass.entries()].map(([cls, value]) => (
-          <Card key={cls}>
-            <CardHeader>
-              <CardDescription>{ASSET_CLASS_LABELS[cls]}</CardDescription>
-              <CardTitle className="text-xl">{formatBRL(value)}</CardTitle>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Posições</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ativo</TableHead>
-                <TableHead>Classe</TableHead>
-                <TableHead className="text-right">Qtd</TableHead>
-                <TableHead className="text-right">Preço médio</TableHead>
-                <TableHead className="text-right">Preço atual</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((p) => {
-                const value = Number(p.quantity) * Number(p.current_price)
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell>
-                      {p.ticker ? (
-                        <span className="font-medium">{p.ticker} </span>
-                      ) : null}
-                      {p.asset_name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {ASSET_CLASS_LABELS[p.asset_class]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{Number(p.quantity)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatBRL(Number(p.avg_price))}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatBRL(Number(p.current_price))}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatBRL(value)}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-              {list.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Nenhuma posição. Importe um extrato de investimentos.
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Movimentos recentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movs.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell>{m.date}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{m.type}</Badge>
-                  </TableCell>
-                  <TableCell>{m.description ?? "—"}</TableCell>
-                  <TableCell className="text-right">
-                    {formatBRL(Number(m.amount))}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {movs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Sem movimentos.
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <InvestimentosClient
+        currentTotal={currentTotal}
+        evolution={evolution}
+        ativos={ativos}
+        movimentos={movimentos}
+      />
     </div>
   )
 }
