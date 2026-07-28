@@ -1,4 +1,4 @@
-import { currentYearMonth, shiftYearMonth } from "@/lib/format"
+import { currentYearMonth, monthBounds, shiftYearMonth } from "@/lib/format"
 
 export type EvolutionPoint = {
   /** YYYY-MM for sorting/filtering */
@@ -8,14 +8,12 @@ export type EvolutionPoint = {
   value: number
 }
 
-export type CashFlowMovement = {
-  date: string
-  type: "aporte" | "resgate" | "provento" | "outro"
-  amount: number
-}
-
-function yearMonthFromDate(isoDate: string): string {
-  return isoDate.slice(0, 7)
+/** Position snapshot used to rebuild the chart (same dates as Ativos). */
+export type EvolutionPosition = {
+  /** YYYY-MM-DD — purchase_date / issueDate */
+  purchaseDate: string
+  invested: number
+  current: number
 }
 
 function labelFromYearMonth(yearMonth: string): string {
@@ -23,51 +21,60 @@ function labelFromYearMonth(yearMonth: string): string {
   return `${m}/${y.slice(2)}`
 }
 
+function daysBetween(a: string, b: string): number {
+  const ms = Date.parse(b) - Date.parse(a)
+  return Math.max(0, Math.round(ms / 86_400_000))
+}
+
 /**
- * Reconstruct monthly portfolio totals by walking cash-flows backwards
- * from the current total (aporte undoes as −, resgate as +).
+ * Monthly portfolio evolution from Ativos dates/values.
+ * Each position contributes from its purchaseDate, growing linearly
+ * from invested → current through today (no reliance on movement dates).
  */
 export function buildInvestmentEvolution(
-  currentTotal: number,
-  movements: CashFlowMovement[],
+  positions: EvolutionPosition[],
   months = 12,
   asOf: Date = new Date()
 ): EvolutionPoint[] {
   const endYm = currentYearMonth(asOf)
+  const asOfIso = asOf.toISOString().slice(0, 10)
   const monthKeys: string[] = []
   for (let i = months - 1; i >= 0; i--) {
     monthKeys.push(shiftYearMonth(endYm, -i))
   }
 
-  const byMonth = new Map<string, { aportes: number; resgates: number }>()
-  for (const m of movements) {
-    if (m.type !== "aporte" && m.type !== "resgate") continue
-    const ym = yearMonthFromDate(m.date)
-    const bucket = byMonth.get(ym) ?? { aportes: 0, resgates: 0 }
-    const amt = Math.abs(Number(m.amount) || 0)
-    if (m.type === "aporte") bucket.aportes += amt
-    else bucket.resgates += amt
-    byMonth.set(ym, bucket)
-  }
+  const active = positions.filter(
+    (p) =>
+      p.purchaseDate &&
+      /^\d{4}-\d{2}-\d{2}$/.test(p.purchaseDate) &&
+      Number.isFinite(p.current)
+  )
 
-  // Walk from end → start, recording end-of-month value then undoing that month's flows
-  const valuesDesc: number[] = []
-  let running = Math.max(0, currentTotal)
-  for (let i = monthKeys.length - 1; i >= 0; i--) {
-    valuesDesc.push(running)
-    const flows = byMonth.get(monthKeys[i]!)
-    if (flows) {
-      running = running - flows.aportes + flows.resgates
-      if (running < 0) running = 0
+  return monthKeys.map((ym) => {
+    const { end: monthEnd } = monthBounds(ym)
+    let value = 0
+
+    for (const p of active) {
+      if (p.purchaseDate > monthEnd) continue
+
+      const span = daysBetween(p.purchaseDate, asOfIso)
+      if (span <= 0) {
+        value += p.current
+        continue
+      }
+
+      const held = daysBetween(p.purchaseDate, monthEnd)
+      const t = Math.min(1, held / span)
+      const invested = Number.isFinite(p.invested) ? p.invested : p.current
+      value += invested + t * (p.current - invested)
     }
-  }
-  valuesDesc.reverse()
 
-  return monthKeys.map((ym, i) => ({
-    yearMonth: ym,
-    label: labelFromYearMonth(ym),
-    value: Math.round((valuesDesc[i] ?? 0) * 100) / 100,
-  }))
+    return {
+      yearMonth: ym,
+      label: labelFromYearMonth(ym),
+      value: Math.round(value * 100) / 100,
+    }
+  })
 }
 
 export function sliceEvolution(

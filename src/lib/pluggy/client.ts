@@ -60,7 +60,10 @@ export type PluggyInvestmentTransaction = {
   type: "BUY" | "SELL" | "TAX" | "TRANSFER" | "INTEREST" | "AMORTIZATION"
   amount?: number | null
   date: string
+  tradeDate?: string | null
   description?: string | null
+  quantity?: number | null
+  value?: number | null
 }
 
 type CursorPage<T> = {

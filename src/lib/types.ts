@@ -99,6 +99,7 @@ export type InvestmentPosition = {
   amount_original: number | null
   amount_withdrawal: number | null
   external_hash: string
+  is_active: boolean
 }
 
 export type InvestmentMovement = {

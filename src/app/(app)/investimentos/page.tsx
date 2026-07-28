@@ -32,7 +32,9 @@ export default async function InvestimentosPage() {
   const [{ data: positions }, { data: movements }] = await Promise.all([
     supabase
       .from("investment_positions")
-      .select("*, accounts(institution)")
+      .select("*, accounts!inner(institution, type)")
+      .eq("is_active", true)
+      .eq("accounts.type", "investment")
       .order("asset_name"),
     supabase
       .from("investment_movements")
@@ -90,11 +92,10 @@ export default async function InvestimentosPage() {
   ativos.sort((a, b) => b.valorAtual - a.valorAtual)
 
   const evolution = buildInvestmentEvolution(
-    currentTotal,
-    movs.map((m) => ({
-      date: m.date,
-      type: m.type,
-      amount: Number(m.amount) || 0,
+    ativos.map((a) => ({
+      purchaseDate: a.investedAt,
+      invested: a.valorInvestido,
+      current: a.valorAtual,
     })),
     12
   )

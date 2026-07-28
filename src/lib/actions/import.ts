@@ -279,6 +279,7 @@ export async function commitImportAction(payload: {
       amount_original: p.amountOriginal ?? null,
       amount_withdrawal: p.amountWithdrawal ?? null,
       external_hash: p.externalHash,
+      is_active: true,
       updated_at: new Date().toISOString(),
     }))
 

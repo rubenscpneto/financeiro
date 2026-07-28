@@ -29,7 +29,9 @@ export default async function PainelPage({
 
   let positionsQuery = supabase
     .from("investment_positions")
-    .select("quantity, current_price, amount_withdrawal, account_id")
+    .select("quantity, current_price, amount_withdrawal, account_id, accounts!inner(type)")
+    .eq("is_active", true)
+    .eq("accounts.type", "investment")
 
   let allTxnsQuery = supabase
     .from("transactions")

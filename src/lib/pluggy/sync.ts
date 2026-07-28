@@ -359,6 +359,7 @@ export async function runPluggySync(
       amount_original: p.amountOriginal ?? null,
       amount_withdrawal: p.amountWithdrawal ?? null,
       external_hash: p.externalHash,
+      is_active: true,
       updated_at: now,
     }))
 
@@ -369,6 +370,42 @@ export async function runPluggySync(
     )
     if (error) return { error: error.message }
     positions = positionRows.length
+  }
+
+  // Soft-deactivate Pluggy positions missing from this sync (sold / TOTAL_WITHDRAWAL).
+  // Scope: current invest account + any other investment-type accounts for this user
+  // (avoids killing CSV positions on checking/credit accounts).
+  const syncedHashes = new Set(positionRows.map((p) => p.external_hash))
+  const { data: investAccounts } = await supabase
+    .from("accounts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("type", "investment")
+
+  const investAccountIds = [
+    ...new Set([
+      investAccountId,
+      ...(investAccounts ?? []).map((a) => a.id as string),
+    ]),
+  ]
+
+  const { data: existingPositions } = await supabase
+    .from("investment_positions")
+    .select("id, external_hash")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .in("account_id", investAccountIds)
+
+  const staleIds = (existingPositions ?? [])
+    .filter((p) => !syncedHashes.has(p.external_hash as string))
+    .map((p) => p.id as string)
+
+  if (staleIds.length > 0) {
+    const { error } = await supabase
+      .from("investment_positions")
+      .update({ is_active: false, updated_at: now })
+      .in("id", staleIds)
+    if (error) return { error: error.message }
   }
 
   const positionIdByHash = new Map<string, string>()
@@ -388,7 +425,6 @@ export async function runPluggySync(
   }
 
   for (const inv of investments) {
-    if (inv.status === "TOTAL_WITHDRAWAL") continue
     let invTxns
     try {
       invTxns = await fetchInvestmentTransactions(apiKey, inv.id)

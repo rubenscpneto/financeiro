@@ -178,11 +178,22 @@ function mapMovementType(
   }
 }
 
+/** Calendar date in America/Sao_Paulo (Pluggy often sends midnight BRT as …T03:00:00.000Z). */
+export function pluggyDateToYmd(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso))
+}
+
 export function mapInvestmentTransaction(
   txn: PluggyInvestmentTransaction
 ): ParsedMovement {
+  const raw = txn.tradeDate || txn.date
   return {
-    date: txn.date.slice(0, 10),
+    date: pluggyDateToYmd(raw),
     type: mapMovementType(txn.type),
     description: txn.description ?? txn.type,
     amount: Number(txn.amount) || 0,
