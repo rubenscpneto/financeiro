@@ -10,6 +10,7 @@ import { groupAccountsByBank } from "@/lib/banks"
 import { decAccount } from "@/lib/crypto/rows"
 import { ConfiguracoesClient } from "@/components/configuracoes-client"
 import { openFinanceCopy } from "@/lib/ui-copy"
+import { resolveAppVersionLine } from "@/lib/app-version"
 
 export default async function ConfiguracoesPage() {
   const { userId, user } = await requireUserOrRedirect()
@@ -67,6 +68,7 @@ export default async function ConfiguracoesPage() {
       pluggy={pluggy}
       settings={settings}
       bankCount={banks.length}
+      versionLine={resolveAppVersionLine()}
     />
   )
 }

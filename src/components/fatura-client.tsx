@@ -13,6 +13,7 @@ import { brl } from "@/components/design/money-display"
 import { useHideValues } from "@/components/hide-values-provider"
 import {
   cycleTotals,
+  faturaDueBanner,
   faturaHeaderTotal,
   faturaVenceLabel,
   type CardCycle,
@@ -35,7 +36,7 @@ export function FaturaClient({
   used,
   closeDay,
   dueDate,
-  daysToDue,
+  asOf,
   lastPaid,
 }: {
   cards: {
@@ -59,7 +60,7 @@ export function FaturaClient({
   used: number
   closeDay: number
   dueDate: string | null
-  daysToDue: number | null
+  asOf: string
   lastPaid: { date: string; amount: number; accountName: string } | null
 }) {
   const router = useRouter()
@@ -73,8 +74,12 @@ export function FaturaClient({
     items: shownItems,
   })
   const tabTotals = tab === 0 ? { aVista, parcelas } : cycleTotals(shownItems)
-  const overdue = daysToDue != null && daysToDue < 0
-  const soon = daysToDue != null && daysToDue <= 3 && daysToDue >= 0
+  const banner = faturaDueBanner({
+    dueDate: current?.dueDate ?? dueDate,
+    asOf,
+  })
+  const overdue = banner.overdue
+  const soon = banner.soon
 
   if (cards.length === 0) {
     return (
@@ -112,7 +117,7 @@ export function FaturaClient({
         ))}
       </div>
 
-      {dueDate && daysToDue != null ? (
+      {banner.kind !== "none" ? (
         <DsCard
           className={
             overdue || soon
@@ -120,11 +125,7 @@ export function FaturaClient({
               : "border-ds-warn bg-ds-warn-soft"
           }
         >
-          <p className="font-semibold">
-            {overdue
-              ? `Fatura venceu há ${Math.abs(daysToDue)} dia${Math.abs(daysToDue) === 1 ? "" : "s"} (${formatDateBR(dueDate)})`
-              : `Fatura vence em ${formatDateBR(dueDate).slice(0, 5)} (daqui a ${daysToDue} dia${daysToDue === 1 ? "" : "s"})`}
-          </p>
+          <p className="font-semibold">{banner.text}</p>
           <p className="text-sm text-ds-muted">
             Ela fecha no dia {String(closeDay).padStart(2, "0")}: compras depois
             disso vão para a próxima fatura.

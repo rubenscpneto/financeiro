@@ -22,6 +22,7 @@ export default defineConfig({
     env: {
       ...process.env,
       PORT: String(port),
+      TZ: "UTC",
       ALLOW_DESIGN_GALLERY: "true",
       CI: "true",
     },

@@ -17,12 +17,10 @@ import {
 import { EXTRATO_SUMMARY_NOTE } from "@/lib/ui-copy"
 import type { Category, Transaction } from "@/lib/types"
 import {
-  calendarDate,
+  extratoDayHeading,
   formatDateBR,
   monthLabelPt,
   shiftYearMonth,
-  SP_TZ,
-  todayYmd,
 } from "@/lib/format"
 import {
   Chip,
@@ -78,22 +76,13 @@ function pushQuery(
 
 const control = `${dsControlClass} w-full min-w-0 max-w-full`
 
-function dayHeading(iso: string) {
-  const today = todayYmd()
-  const label = new Intl.DateTimeFormat("pt-BR", {
-    day: "numeric",
-    month: "long",
-    timeZone: SP_TZ,
-  }).format(calendarDate(iso))
-  return iso === today ? `${label.toUpperCase()} · HOJE` : label.toUpperCase()
-}
-
 export function TransacoesClient({
   transactions,
   categories,
   yearMonth,
   from,
   to,
+  today,
   summary,
   hiddenDuplicates,
   loans,
@@ -104,6 +93,7 @@ export function TransacoesClient({
   yearMonth: string | null
   from: string
   to: string
+  today: string
   summary: {
     entrou: number
     saiu: number
@@ -370,7 +360,7 @@ export function TransacoesClient({
         {groups.map(([day, rows]) => (
           <div key={day} className="min-w-0">
             <p className="px-2 pt-4 pb-1 text-sm font-semibold tracking-[0.06em] text-ds-subtle">
-              {dayHeading(day)}
+              {extratoDayHeading(day, today)}
             </p>
             {rows.map((t) => {
               const amount = Number(t.amount)

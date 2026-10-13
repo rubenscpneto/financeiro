@@ -30,6 +30,7 @@ function readHidden() {
 function writeHidden(next: boolean) {
   try {
     localStorage.setItem(STORAGE_KEY, next ? "1" : "0")
+    document.documentElement.setAttribute("data-hide-values", next ? "1" : "0")
   } catch {
     /* ignore */
   }

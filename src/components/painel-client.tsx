@@ -6,7 +6,7 @@ import { AppMoney } from "@/components/app-money"
 import { brl } from "@/components/design/money-display"
 import { useHideValues } from "@/components/hide-values-provider"
 import { budgetStatus } from "@/lib/design/budget-status"
-import { currentYearMonth, monthLabelPt } from "@/lib/format"
+import { monthLabelPt } from "@/lib/format"
 
 export function PainelClient({
   netWorth,
@@ -21,6 +21,7 @@ export function PainelClient({
   goals,
   bankName = null,
   bankSuffix = "",
+  yearMonth,
 }: {
   netWorth: number
   checking: number
@@ -34,10 +35,11 @@ export function PainelClient({
   goals: { name: string; current: number; target: number }[]
   bankName?: string | null
   bankSuffix?: string
+  yearMonth: string
 }) {
   const { hidden } = useHideValues()
   const monthBudget = budgets.reduce((s, b) => s + b.limit, 0)
-  const monthLabel = monthLabelPt(currentYearMonth())
+  const monthLabel = monthLabelPt(yearMonth)
   const suffix = bankSuffix || (bankName ? ` no ${bankName}` : "")
   const spentRatio = monthBudget > 0 ? expense / monthBudget : 0
   void _flowByDay

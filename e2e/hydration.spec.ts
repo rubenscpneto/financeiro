@@ -10,7 +10,10 @@ const AUTHED_PATHS = [
   "/orcamentos",
   "/metas",
   "/investimentos",
+  "/configuracoes",
 ] as const
+
+const VERSION_LINE = /^Versão (dev|[0-9a-f]{7,}) · (homologação|produção|local)$/
 
 function isHydrationNoise(text: string) {
   return (
@@ -37,65 +40,100 @@ function collectHydrationErrors(page: Page) {
   return errors
 }
 
+async function login(page: Page) {
+  await page.goto("/auth/login")
+  await page.getByLabel("E-mail").fill(EMAIL)
+  await page.getByLabel("Senha").fill(PASSWORD)
+  await page.getByRole("button", { name: "Entrar" }).click()
+  await page.waitForURL(/\/painel/)
+  await expect(page.getByText("Olá,")).toBeVisible()
+}
+
+async function assertAuthedPathsClean(page: Page, errors: string[]) {
+  for (const path of AUTHED_PATHS) {
+    const before = errors.length
+    await page.goto(path, { waitUntil: "networkidle" })
+    await page.waitForTimeout(500)
+    expect(errors.slice(before), `hydration error on ${path}`).toEqual([])
+
+    await expect(page.locator('meta[name="app-version"]')).toHaveCount(1)
+    const version = page.getByText(VERSION_LINE)
+    if (path === "/configuracoes") {
+      await expect(version).toHaveCount(1)
+      await expect(version).toBeVisible()
+      await expect(version).toHaveClass(/text-sm/)
+      await expect(version).toHaveClass(/text-ds-subtle/)
+    } else {
+      await expect(version).toHaveCount(0)
+    }
+
+    if (path === "/fatura") {
+      const reloadBefore = errors.length
+      await page.reload({ waitUntil: "networkidle" })
+      await page.waitForTimeout(500)
+      expect(
+        errors.slice(reloadBefore),
+        "hydration error on hard reload of /fatura"
+      ).toEqual([])
+
+      const cycleTabs = page.locator("div.inline-flex.rounded-full button")
+      const tabCount = await cycleTabs.count()
+      if (tabCount > 1) {
+        const vence: string[] = []
+        const banners: string[] = []
+        for (let i = 0; i < tabCount; i++) {
+          await cycleTabs.nth(i).click()
+          const label = page.getByText(/^vence \d{2}\/\d{2}$/)
+          await expect(label).toBeVisible()
+          vence.push((await label.textContent()) ?? "")
+          const banner = page.getByText(/^Fatura vence em \d{2}\/\d{2}/)
+          if (await banner.count()) {
+            banners.push((await banner.textContent()) ?? "")
+          }
+        }
+        expect(
+          new Set(vence).size,
+          `vence label should follow the selected cycle tab, got ${vence.join(", ")}`
+        ).toBe(tabCount)
+        if (banners.length === tabCount) {
+          expect(
+            new Set(banners).size,
+            `orange banner should follow the selected cycle tab, got ${banners.join(", ")}`
+          ).toBe(tabCount)
+        }
+      }
+    }
+  }
+  expect(errors, "hydration errors across authed pages").toEqual([])
+}
+
 test.describe("authenticated hydration", () => {
   test.use({
     locale: "pt-BR",
     timezoneId: "America/Sao_Paulo",
   })
 
-  test("login then authed pages emit no React hydration errors", async ({
+  test("authed pages emit no hydration errors with values revealed", async ({
     page,
   }) => {
-    // Staging QA stores revealed values. SSR still defaults to hidden, so this
-    // must be set before the first authed document load or the test is a false pass.
     await page.addInitScript(() => {
       localStorage.setItem("financeiro-hide-values", "0")
       localStorage.setItem("theme", "dark")
     })
-
     const errors = collectHydrationErrors(page)
+    await login(page)
+    await assertAuthedPathsClean(page, errors)
+  })
 
-    await page.goto("/auth/login")
-    await page.getByLabel("E-mail").fill(EMAIL)
-    await page.getByLabel("Senha").fill(PASSWORD)
-    await page.getByRole("button", { name: "Entrar" }).click()
-    await page.waitForURL(/\/painel/)
-    await expect(page.getByText("Olá,")).toBeVisible()
-
-    for (const path of AUTHED_PATHS) {
-      const before = errors.length
-      await page.goto(path, { waitUntil: "networkidle" })
-      await page.waitForTimeout(500)
-      const added = errors.slice(before)
-      expect(added, `hydration error on ${path}`).toEqual([])
-
-      if (path === "/fatura") {
-        const reloadBefore = errors.length
-        await page.reload({ waitUntil: "networkidle" })
-        await page.waitForTimeout(500)
-        expect(
-          errors.slice(reloadBefore),
-          "hydration error on hard reload of /fatura"
-        ).toEqual([])
-
-        const cycleTabs = page.locator("div.inline-flex.rounded-full button")
-        const tabCount = await cycleTabs.count()
-        if (tabCount > 1) {
-          const labels: string[] = []
-          for (let i = 0; i < tabCount; i++) {
-            await cycleTabs.nth(i).click()
-            const label = page.getByText(/^vence \d{2}\/\d{2}$/)
-            await expect(label).toBeVisible()
-            labels.push((await label.textContent()) ?? "")
-          }
-          expect(
-            new Set(labels).size,
-            `vence label should follow the selected cycle tab, got ${labels.join(", ")}`
-          ).toBe(tabCount)
-        }
-      }
-    }
-
-    expect(errors, "hydration errors across authed pages").toEqual([])
+  test("authed pages emit no hydration errors with values hidden", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("financeiro-hide-values", "1")
+      localStorage.removeItem("theme")
+    })
+    const errors = collectHydrationErrors(page)
+    await login(page)
+    await assertAuthedPathsClean(page, errors)
   })
 })

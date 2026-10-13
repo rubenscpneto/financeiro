@@ -309,6 +309,7 @@ export default async function PainelPage({
       goals={goalRows}
       bankName={bankName}
       bankSuffix={bankSuffix}
+      yearMonth={yearMonth}
     />
   )
 }

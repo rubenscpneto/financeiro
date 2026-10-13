@@ -1,5 +1,45 @@
 export const SP_TZ = "America/Sao_Paulo"
 
+const PT_MONTHS_LONG = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+] as const
+
+const PT_MONTHS_SHORT = [
+  "jan.",
+  "fev.",
+  "mar.",
+  "abr.",
+  "mai.",
+  "jun.",
+  "jul.",
+  "ago.",
+  "set.",
+  "out.",
+  "nov.",
+  "dez.",
+] as const
+
+const PT_WEEKDAYS = [
+  "domingo",
+  "segunda-feira",
+  "terça-feira",
+  "quarta-feira",
+  "quinta-feira",
+  "sexta-feira",
+  "sábado",
+] as const
+
 export function todayYmd(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: SP_TZ,
@@ -9,12 +49,27 @@ export function todayYmd(date = new Date()) {
   }).format(date)
 }
 
+export function formatTodayLabel(date = new Date()) {
+  const ymd = todayYmd(date)
+  const [y, m, d] = ymd.split("-").map(Number)
+  const weekday = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay()
+  return `${PT_WEEKDAYS[weekday]}, ${d} de ${PT_MONTHS_LONG[m - 1]}`
+}
+
+export function extratoDayHeading(isoDate: string, today: string) {
+  const day = isoDate.slice(0, 10)
+  const [, m, d] = day.split("-").map(Number)
+  const label = `${d} de ${PT_MONTHS_LONG[m - 1]}`.toUpperCase()
+  return day === today ? `${label} · HOJE` : label
+}
+
 export function formatBRL(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    numberingSystem: "latn",
-  }).format(value)
+  const abs = Math.round(Math.abs(value) * 100)
+  const whole = Math.floor(abs / 100)
+  const cents = String(abs % 100).padStart(2, "0")
+  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+  const sign = value < 0 ? "−" : ""
+  return `${sign}R$ ${grouped},${cents}`
 }
 
 export function formatDateBR(isoDate: string) {
@@ -60,11 +115,10 @@ export function calendarDate(iso: string) {
 }
 
 export function monthLabelPt(yearMonth: string, style: "long" | "short" = "long") {
-  const label = new Intl.DateTimeFormat("pt-BR", {
-    month: style,
-    year: "numeric",
-    timeZone: SP_TZ,
-  }).format(calendarDate(`${yearMonth}-01`))
+  const [y, m] = yearMonth.split("-").map(Number)
+  const months = style === "short" ? PT_MONTHS_SHORT : PT_MONTHS_LONG
+  const name = months[(m || 1) - 1] ?? ""
+  const label = `${name} de ${y}`
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 

@@ -130,12 +130,6 @@ export default async function FaturaPage({
     .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))[0]
 
   const dueDate = current?.dueDate ?? null
-  const daysToDue = dueDate
-    ? Math.round(
-        (Date.parse(`${dueDate}T00:00:00`) - Date.parse(`${asOf}T00:00:00`)) /
-          86_400_000
-      )
-    : null
 
   return (
     <FaturaClient
@@ -165,7 +159,7 @@ export default async function FaturaPage({
       used={used}
       closeDay={closeDay}
       dueDate={dueDate}
-      daysToDue={daysToDue}
+      asOf={asOf}
       lastPaid={
         lastPaid
           ? {

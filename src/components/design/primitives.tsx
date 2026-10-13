@@ -185,18 +185,23 @@ export const dsControlClass =
   "h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-ink"
 
 export function EyeButton({
-  hidden,
   onClick,
 }: {
-  hidden: boolean
+  hidden?: boolean
   onClick?: () => void
 }) {
   const className =
     "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-ds-border bg-ds-surface px-3.5 py-2.5 text-[15px] font-medium text-ds-ink"
   const inner = (
     <>
-      <DesignIcon name={hidden ? "eye" : "eyeoff"} size={20} />
-      {hidden ? "Mostrar valores" : "Esconder valores"}
+      <span className="inline-flex items-center gap-2 values-shown:hidden">
+        <DesignIcon name="eye" size={20} />
+        Mostrar valores
+      </span>
+      <span className="hidden items-center gap-2 values-shown:inline-flex">
+        <DesignIcon name="eyeoff" size={20} />
+        Esconder valores
+      </span>
     </>
   )
   if (onClick) {

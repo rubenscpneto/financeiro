@@ -3,6 +3,7 @@ import test from "node:test"
 import {
   cycleForDate,
   cycleTotals,
+  faturaDueBanner,
   faturaHeaderTotal,
   faturaVenceLabel,
   futureInstallments,
@@ -117,6 +118,23 @@ test("vence label follows the selected cycle due date", () => {
   assert.equal(faturaVenceLabel("2026-12-05"), "vence 05/12")
   assert.equal(faturaVenceLabel("2027-01-05"), "vence 05/01")
   assert.equal(faturaVenceLabel(null), "aberta")
+})
+
+test("orange due banner follows the selected cycle due date", () => {
+  assert.equal(
+    faturaDueBanner({ dueDate: "2026-11-05", asOf: "2026-10-13" }).text,
+    "Fatura vence em 05/11 (daqui a 23 dias)"
+  )
+  assert.equal(
+    faturaDueBanner({ dueDate: "2026-12-05", asOf: "2026-10-13" }).text,
+    "Fatura vence em 05/12 (daqui a 53 dias)"
+  )
+  assert.equal(
+    faturaDueBanner({ dueDate: "2026-10-10", asOf: "2026-10-13" }).text,
+    "Fatura venceu há 3 dias (10/10/2026)"
+  )
+  assert.equal(faturaDueBanner({ dueDate: "2026-10-16", asOf: "2026-10-13" }).soon, true)
+  assert.equal(faturaDueBanner({ dueDate: null, asOf: "2026-10-13" }).kind, "none")
 })
 
 test("future installments are sorted by date", () => {

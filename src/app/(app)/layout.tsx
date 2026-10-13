@@ -8,6 +8,7 @@ import { decAccount } from "@/lib/crypto/rows"
 import { groupAccountsByBank } from "@/lib/banks"
 import { AppProviders } from "@/components/app-providers"
 import { AppShell } from "@/components/app-shell"
+import { formatTodayLabel } from "@/lib/format"
 
 export default async function AppLayout({
   children,
@@ -39,6 +40,7 @@ export default async function AppLayout({
       <AppProviders>
         <AppShell
           userLabel={label}
+          todayLabel={formatTodayLabel()}
           banks={banks.map((b) => ({ key: b.key, name: b.name }))}
         >
           {children}

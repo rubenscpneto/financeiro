@@ -4,6 +4,7 @@
 @import "../../design/tokens.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant values-shown (&:is(html[data-hide-values="0"] *));
 
 @theme inline {
   --color-background: var(--background);

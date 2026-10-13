@@ -1,12 +1,12 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { ThemeProvider } from "next-themes"
+import { ThemeProvider } from "@/components/theme-provider"
 import { HideValuesProvider } from "@/components/hide-values-provider"
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider>
       <HideValuesProvider>{children}</HideValuesProvider>
     </ThemeProvider>
   )

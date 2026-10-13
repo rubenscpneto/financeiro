@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useTransition } from "react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { toast } from "sonner"
 import {
   saveUserSettingsAction,
@@ -112,6 +112,7 @@ export function ConfiguracoesClient({
   pluggy,
   settings,
   bankCount,
+  versionLine,
 }: {
   nome: string
   email: string
@@ -123,6 +124,7 @@ export function ConfiguracoesClient({
   }
   settings: UserSettings
   bankCount: number
+  versionLine: string
 }) {
   const [pending, start] = useTransition()
   const { theme, setTheme } = useTheme()
@@ -406,6 +408,10 @@ export function ConfiguracoesClient({
           </div>
         </DsCard>
       </div>
+
+      <footer className="lg:col-span-2">
+        <p className="text-sm text-ds-subtle">{versionLine}</p>
+      </footer>
     </div>
   )
 }

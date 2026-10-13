@@ -271,6 +271,7 @@ export default async function TransacoesPage({
           yearMonth={yearMonth}
           from={decorateFrom ?? ""}
           to={decorateTo ?? ""}
+          today={today}
           summary={{
             entrou,
             saiu,

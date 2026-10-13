@@ -6,7 +6,7 @@ import { undoWriteOffAction, writeOffLoanAction } from "@/lib/actions/crud"
 import { AppMoney } from "@/components/app-money"
 import { DesignIcon } from "@/components/design/icons"
 import { Button } from "@/components/ui/button"
-import { formatDateBR } from "@/lib/format"
+import { formatDateBR, todayYmd } from "@/lib/format"
 import { brl } from "@/components/design/money-display"
 import { useHideValues } from "@/components/hide-values-provider"
 
@@ -44,12 +44,7 @@ export function LoanWriteOffDialog({
   }, [target, onClose])
 
   if (!target) return null
-  const today = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date())
+  const today = formatDateBR(todayYmd())
 
   return (
     <div

@@ -17,7 +17,13 @@ import {
 } from "../banks.ts"
 import { decorateTransactions } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
-import { currentYearMonth, monthLabelPt, todayYmd } from "../format.ts"
+import {
+  currentYearMonth,
+  extratoDayHeading,
+  formatTodayLabel,
+  monthLabelPt,
+  todayYmd,
+} from "../format.ts"
 
 test("MeuPluggy is never a bank; COMPE 336 and C6 merge into C6", () => {
   const groups = groupAccountsByBank([
@@ -168,6 +174,13 @@ test("Accommodation maps to Hospedagem", () => {
 
 test("month labels are 'Outubro de 2026'", () => {
   assert.equal(monthLabelPt("2026-10"), "Outubro de 2026")
+})
+
+test("today label and extrato day headings are calendar-stable in America/Sao_Paulo", () => {
+  const noonUtc = new Date("2026-10-13T15:00:00.000Z")
+  assert.equal(formatTodayLabel(noonUtc), "terça-feira, 13 de outubro")
+  assert.equal(extratoDayHeading("2026-10-13", "2026-10-13"), "13 DE OUTUBRO · HOJE")
+  assert.equal(extratoDayHeading("2026-10-15", "2026-10-13"), "15 DE OUTUBRO")
 })
 
 test("currentYearMonth uses America/Sao_Paulo like todayYmd", () => {

@@ -6,6 +6,7 @@ import {
   installmentGroupKey,
   type ClassifiableTxn,
 } from "./txn-class.ts"
+import { monthLabelPt } from "./format.ts"
 import { closeAndDueDays } from "./account-meta.ts"
 import type { AccountExtraMeta } from "./types.ts"
 
@@ -45,10 +46,7 @@ export function cycleForDate(
     dueYm,
     closeDate: ymd(close.y, close.m, closeDay),
     dueDate: ymd(due.y, due.m, dueDay),
-    label: new Intl.DateTimeFormat("pt-BR", {
-      month: "long",
-      timeZone: "America/Sao_Paulo",
-    }).format(new Date(`${due.y}-${pad(due.m)}-01T12:00:00.000-03:00`)),
+    label: monthLabelPt(dueYm).split(" de ")[0].toLowerCase(),
   }
 }
 
@@ -93,6 +91,44 @@ export function faturaVenceLabel(dueDate: string | null | undefined): string {
   const [, m, d] = dueDate.split("-")
   if (!m || !d) return "aberta"
   return `vence ${d}/${m}`
+}
+
+export function daysBetweenYmd(fromYmd: string, toYmd: string): number {
+  const from = Date.parse(`${fromYmd.slice(0, 10)}T12:00:00.000-03:00`)
+  const to = Date.parse(`${toYmd.slice(0, 10)}T12:00:00.000-03:00`)
+  return Math.round((to - from) / 86_400_000)
+}
+
+export function faturaDueBanner(opts: {
+  dueDate: string | null | undefined
+  asOf: string
+}): {
+  kind: "none" | "overdue" | "upcoming"
+  text: string
+  overdue: boolean
+  soon: boolean
+} {
+  if (!opts.dueDate) {
+    return { kind: "none", text: "", overdue: false, soon: false }
+  }
+  const days = daysBetweenYmd(opts.asOf, opts.dueDate)
+  const full = `${opts.dueDate.slice(8, 10)}/${opts.dueDate.slice(5, 7)}/${opts.dueDate.slice(0, 4)}`
+  const short = `${opts.dueDate.slice(8, 10)}/${opts.dueDate.slice(5, 7)}`
+  if (days < 0) {
+    const n = Math.abs(days)
+    return {
+      kind: "overdue",
+      text: `Fatura venceu há ${n} dia${n === 1 ? "" : "s"} (${full})`,
+      overdue: true,
+      soon: false,
+    }
+  }
+  return {
+    kind: "upcoming",
+    text: `Fatura vence em ${short} (daqui a ${days} dia${days === 1 ? "" : "s"})`,
+    overdue: false,
+    soon: days <= 3,
+  }
 }
 
 export function cycleTotals(items: CycleItem[]): {

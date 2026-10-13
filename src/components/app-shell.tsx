@@ -5,8 +5,7 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { BankFilter } from "@/components/bank-filter"
 import { bankFromParams, hrefWithBank, type BankGroup } from "@/lib/banks"
-import { SP_TZ } from "@/lib/format"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 import { DesignIcon, type DesignIconName } from "@/components/design/icons"
 import {
@@ -90,16 +89,6 @@ function firstName(label: string) {
   return label.split(/[\s@]/)[0] || label
 }
 
-function todayLabel() {
-  const raw = new Intl.DateTimeFormat("pt-BR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: SP_TZ,
-  }).format(new Date())
-  return raw.charAt(0).toLowerCase() + raw.slice(1)
-}
-
 function NavRow({
   icon,
   label,
@@ -136,10 +125,12 @@ function NavRow({
 export function AppShell({
   children,
   userLabel,
+  todayLabel,
   banks = [],
 }: {
   children: ReactNode
   userLabel: string
+  todayLabel: string
   banks?: Pick<BankGroup, "key" | "name">[]
 }) {
   const pathname = usePathname()
@@ -241,8 +232,8 @@ export function AppShell({
                     <p className="text-[28px] leading-tight font-semibold tracking-tight lg:text-[32px]">
                       Olá, {firstName(userLabel)}
                     </p>
-                    <p className="mt-1 text-sm text-ds-muted" suppressHydrationWarning>
-                      Suas finanças · {todayLabel()}
+                    <p className="mt-1 text-sm text-ds-muted">
+                      Suas finanças · {todayLabel}
                     </p>
                   </>
                 ) : (
