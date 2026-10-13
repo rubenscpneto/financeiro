@@ -72,6 +72,7 @@ async function upsertLocalAccount(
     institution: string
     last4: string | null
     currency: string
+    extraMeta?: string | null
   }
 ): Promise<string> {
   const bidx = crypto.blindIndex(input.pluggyAccountId)
@@ -103,6 +104,7 @@ async function upsertLocalAccount(
     institution: input.institution,
     last4: input.last4,
     pluggy_account_id: input.pluggyAccountId,
+    extra_meta: input.extraMeta ?? null,
   })
 
   if (existing?.id) {
@@ -116,6 +118,7 @@ async function upsertLocalAccount(
         currency: input.currency,
         pluggy_account_id: enc.pluggy_account_id,
         pluggy_account_id_bidx: enc.pluggy_account_id_bidx,
+        extra_meta: enc.extra_meta,
         is_active: true,
         updated_at: new Date(),
       })
@@ -134,6 +137,7 @@ async function upsertLocalAccount(
       institution: enc.institution,
       last4: enc.last4,
       currency: input.currency,
+      extra_meta: enc.extra_meta,
       is_active: true,
     })
     .returning({ id: accounts.id })
@@ -202,6 +206,16 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     if (!sourceType) continue
 
     try {
+      const extraMeta = acc.creditData
+        ? JSON.stringify({
+            brand: acc.creditData.brand ?? null,
+            level: acc.creditData.level ?? null,
+            creditLimit: acc.creditData.creditLimit ?? null,
+            availableCreditLimit: acc.creditData.availableCreditLimit ?? null,
+            balanceCloseDate: acc.creditData.balanceCloseDate ?? null,
+            balanceDueDate: acc.creditData.balanceDueDate ?? null,
+          })
+        : null
       const localId = await upsertLocalAccount(crypto, userId, {
         pluggyAccountId: acc.id,
         name: acc.name || `${institution} ${sourceType}`,
@@ -209,6 +223,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
         institution,
         last4: last4FromNumber(acc.number),
         currency: acc.currencyCode || "BRL",
+        extraMeta,
       })
       seenPluggyIds.add(acc.id)
       localByPluggyId.set(acc.id, localId)
@@ -473,6 +488,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
       current_price: enc.current_price,
       as_of: p.asOf,
       purchase_date: p.purchaseDate ?? null,
+      due_date: p.dueDate ?? null,
       rate: enc.rate,
       rate_type: enc.rate_type,
       amount_original: enc.amount_original,
@@ -503,6 +519,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
             current_price: sql`excluded.current_price`,
             as_of: sql`excluded.as_of`,
             purchase_date: sql`excluded.purchase_date`,
+            due_date: sql`excluded.due_date`,
             rate: sql`excluded.rate`,
             rate_type: sql`excluded.rate_type`,
             amount_original: sql`excluded.amount_original`,

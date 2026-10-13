@@ -1,135 +1,157 @@
 import { and, desc, eq } from "drizzle-orm"
 import { db } from "@/db"
-import { accounts, investmentMovements, investmentPositions } from "@/db/schema"
+import {
+  accounts,
+  balanceSnapshots,
+  investmentMovements,
+  investmentPositions,
+  transactions,
+} from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
-import { decMovement, decPosition } from "@/lib/crypto/rows"
+import { decAccount, decMovement, decPosition } from "@/lib/crypto/rows"
+import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
+import { getCdiRates } from "@/lib/cdi"
 import {
-  type AssetClass,
-  type InvestmentMovement,
-  type InvestmentPosition,
-} from "@/lib/types"
-import { buildInvestmentEvolution } from "@/lib/investments/evolution"
-import {
-  formatRentabilidade,
-  positionCurrentValue,
-  positionInvestedValue,
-} from "@/lib/investments/value"
-import {
-  InvestimentosClient,
-  type AtivoView,
-  type MovimentoView,
-} from "@/components/investimentos-client"
+  groupTitles,
+  irBands,
+  periodCdiKpi,
+  titledPosition,
+} from "@/lib/investments/net"
+import { parseAccountMeta } from "@/lib/account-meta"
+import { buildReserve, recurringMonthlySpend } from "@/lib/reserve"
+import { roundCents } from "@/lib/money-math"
+import { InvestimentosClient } from "@/components/investimentos-client"
+import type { ClassifiableTxn as Txn } from "@/lib/txn-class"
 
 export default async function InvestimentosPage() {
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
-  const [positionRows, movementRows] = await Promise.all([
-    db
-      .select({
-        position: investmentPositions,
-        institution: accounts.institution,
-      })
-      .from(investmentPositions)
-      .innerJoin(accounts, eq(investmentPositions.account_id, accounts.id))
-      .where(
-        and(
-          eq(investmentPositions.user_id, userId),
-          eq(investmentPositions.is_active, true),
-          eq(accounts.type, "investment")
-        )
-      )
-      .orderBy(investmentPositions.id),
-    db
-      .select()
-      .from(investmentMovements)
-      .where(eq(investmentMovements.user_id, userId))
-      .orderBy(desc(investmentMovements.date), desc(investmentMovements.id)),
-  ])
+  const asOf = todayYmd()
+  const ym = currentYearMonth()
+  const monthStart = monthBounds(ym).start
+  const yearAgo = `${Number(asOf.slice(0, 4)) - 1}${asOf.slice(4)}`
 
-  const list = positionRows.map((row) => {
-    const p = decPosition(crypto, row.position)
-    return {
-      ...p,
-      institution: crypto.decryptFlex("institution", row.institution) ?? "",
-    }
-  }) as (InvestmentPosition & { institution: string })[]
+  const [positionRows, movementRows, accountRows, snapRows, txnRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(investmentPositions)
+        .where(
+          and(
+            eq(investmentPositions.user_id, userId),
+            eq(investmentPositions.is_active, true)
+          )
+        ),
+      db
+        .select()
+        .from(investmentMovements)
+        .where(eq(investmentMovements.user_id, userId))
+        .orderBy(desc(investmentMovements.date)),
+      db
+        .select()
+        .from(accounts)
+        .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true))),
+      db
+        .select()
+        .from(balanceSnapshots)
+        .where(eq(balanceSnapshots.user_id, userId)),
+      db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.user_id, userId))
+        .orderBy(desc(transactions.date))
+        .limit(4000),
+    ])
 
-  const movs = movementRows.map((m) =>
-    decMovement(crypto, m)
-  ) as InvestmentMovement[]
-
-  const firstAporteByPosition = new Map<string, string>()
-  for (const m of [...movs].reverse()) {
-    if (m.type !== "aporte" || !m.position_id) continue
-    if (!firstAporteByPosition.has(m.position_id)) {
-      firstAporteByPosition.set(m.position_id, m.date)
-    }
-  }
-
-  const ativos: AtivoView[] = list.map((p) => {
-    const valorAtual = positionCurrentValue(p)
-    const valorInvestido = positionInvestedValue(p)
-    const rendimento = valorAtual - valorInvestido
-    const rendimentoPct =
-      valorInvestido > 0 ? (rendimento / valorInvestido) * 100 : null
-
-    const investedAt =
-      p.purchase_date ?? firstAporteByPosition.get(p.id) ?? p.as_of
-
-    return {
-      id: p.id,
-      assetName: p.asset_name,
-      ticker: p.ticker,
-      assetClass: p.asset_class as AssetClass,
-      institution: p.institution,
-      investedAt,
-      rentabilidade: formatRentabilidade(
-        p.rate != null ? Number(p.rate) : null,
-        p.rate_type
-      ),
-      valorInvestido,
-      valorAtual,
-      rendimento,
-      rendimentoPct,
-      portfolioPct: 0,
-    }
+  const accountsDecoded = accountRows.map((a) => {
+    const d = decAccount(crypto, a)
+    return { ...d, extra: parseAccountMeta(d.extra_meta) }
   })
-  const currentTotal = ativos.reduce((sum, a) => sum + a.valorAtual, 0)
-
-  for (const a of ativos) {
-    a.portfolioPct =
-      currentTotal > 0 ? (a.valorAtual / currentTotal) * 100 : 0
-  }
-
-  ativos.sort(
-    (a, b) => b.valorAtual - a.valorAtual || a.id.localeCompare(b.id)
+  const titles = positionRows.map((p) =>
+    titledPosition(decPosition(crypto, p), asOf)
+  )
+  const movs = movementRows.map((m) => decMovement(crypto, m))
+  const groups = groupTitles(titles)
+  const gross = roundCents(titles.reduce((s, t) => s + t.gross, 0))
+  const net = roundCents(titles.reduce((s, t) => s + t.net, 0))
+  const iof = roundCents(titles.reduce((s, t) => s + t.iof, 0))
+  const ir = roundCents(titles.reduce((s, t) => s + t.ir, 0))
+  const earnings = roundCents(titles.reduce((s, t) => s + t.earnings, 0))
+  const liquid = roundCents(
+    titles.filter((t) => !t.locked).reduce((s, t) => s + t.net, 0)
+  )
+  const locked = roundCents(
+    titles.filter((t) => t.locked).reduce((s, t) => s + t.net, 0)
   )
 
-  const evolution = buildInvestmentEvolution(
-    ativos.map((a) => ({
-      purchaseDate: a.investedAt,
-      invested: a.valorInvestido,
-      current: a.valorAtual,
-    })),
-    12
-  )
+  const checking = snapRows
+    .filter((s) => s.source_type === "checking")
+    .reduce((s, r) => s + crypto.decryptNum("balance", r.balance), 0)
+  const disponivel = roundCents(liquid + checking)
 
-  const movimentos: MovimentoView[] = movs
-    .filter((m) => m.type === "aporte" || m.type === "resgate")
-    .map((m) => ({
-      id: m.id,
-      date: m.date,
-      type: m.type as "aporte" | "resgate",
-      amount: Number(m.amount) || 0,
-    }))
+  const billLines = accountsDecoded
+    .filter((a) => a.type === "credit_card")
+    .map((a) => {
+      const snap = snapRows.find((s) => s.account_id === a.id)
+      const amount = snap ? crypto.decryptNum("balance", snap.balance) : 0
+      return { name: a.name, amount }
+    })
+    .filter((b) => b.amount > 0)
+
+  const txns: Txn[] = txnRows.map((t) => ({
+    ...t,
+    amount: crypto.decryptNum("amount", t.amount),
+    description: crypto.decryptFlex("description", t.description),
+    merchant: crypto.decryptFlex("merchant", t.merchant),
+    installment: crypto.decryptFlex("installment", t.installment),
+    notes: crypto.decryptFlex("notes", t.notes),
+    source_category: crypto.decryptFlex("source_category", t.source_category),
+  }))
+
+  const recurring = recurringMonthlySpend(txns, ym)
+  const reserve = buildReserve({
+    disponivel,
+    openBills: billLines,
+    recurringSpend: recurring,
+  })
+
+  const rates = await getCdiRates(yearAgo, asOf)
+  const monthRates = rates.filter((r) => r.date >= monthStart && r.date <= asOf)
+  const lastPublished = monthRates.at(-1)?.date ?? asOf
+  const monthKpi = periodCdiKpi(
+    titles,
+    movs,
+    rates,
+    monthStart,
+    lastPublished
+  )
+  const yearKpi = periodCdiKpi(titles, movs, rates, yearAgo, lastPublished)
+  const vencimentos = titles
+    .filter((t) => t.dueDate && t.dueDate >= asOf)
+    .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
+    .slice(0, 8)
 
   return (
     <InvestimentosClient
-        currentTotal={currentTotal}
-        evolution={evolution}
-        ativos={ativos}
-        movimentos={movimentos}
-      />
+      net={net}
+      gross={gross}
+      iof={iof}
+      ir={ir}
+      earnings={earnings}
+      liquid={liquid}
+      locked={locked}
+      groups={groups}
+      monthKpi={monthKpi}
+      yearKpi={yearKpi}
+      reserve={reserve}
+      vencimentos={vencimentos.map((t) => ({
+        date: t.dueDate!,
+        name: t.name,
+        gross: t.gross,
+      }))}
+      bands={irBands(titles)}
+      iofNotes={titles.filter((t) => t.iof > 0)}
+    />
   )
 }

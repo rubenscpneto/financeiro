@@ -124,6 +124,8 @@ export function mapInvestment(inv: PluggyInvestment): ParsedPosition | null {
 
   const purchaseRaw = inv.purchaseDate ?? inv.issueDate
   const purchaseDate = purchaseRaw ? purchaseRaw.slice(0, 10) : null
+  const dueRaw = inv.dueDate
+  const dueDate = dueRaw ? dueRaw.slice(0, 10) : null
   const amountOriginal =
     inv.amountOriginal != null && Number.isFinite(Number(inv.amountOriginal))
       ? Number(inv.amountOriginal)
@@ -160,6 +162,7 @@ export function mapInvestment(inv: PluggyInvestment): ParsedPosition | null {
     rateType: inv.rateType ?? null,
     amountOriginal,
     amountWithdrawal,
+    dueDate,
     externalHash: makeHash("pluggy-inv", inv.id),
   }
 }

@@ -27,6 +27,7 @@ export type ParsedPosition = {
   rateType?: string | null
   amountOriginal?: number | null
   amountWithdrawal?: number | null
+  dueDate?: string | null
   externalHash: string
 }
 

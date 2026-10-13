@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -25,30 +25,45 @@ const MOBILE_NAV: { href?: string; more?: boolean; icon: DesignIconName; label: 
     { href: "/painel", icon: "house", label: "Início" },
     { href: "/transacoes", icon: "arrows", label: "Extrato" },
     { href: "/investimentos", icon: "trending", label: "Investir" },
-    { href: "/orcamentos", icon: "target", label: "Planejar" },
+    { href: "/metas", icon: "target", label: "Planejar" },
     { more: true, icon: "grid", label: "Mais" },
   ]
 
 const DESKTOP_NAV: { href: string; icon: DesignIconName; label: string }[] = [
   { href: "/painel", icon: "house", label: "Início" },
   { href: "/transacoes", icon: "arrows", label: "Extrato" },
+  { href: "/fatura", icon: "card", label: "Fatura do cartão" },
   { href: "/investimentos", icon: "trending", label: "Investimentos" },
-  { href: "/orcamentos", icon: "target", label: "Planejar gastos" },
+]
+
+const PLANEJAR_NAV: { href: string; icon: DesignIconName; label: string }[] = [
+  { href: "/metas", icon: "target", label: "Metas" },
+  { href: "/assinaturas", icon: "repeat", label: "Assinaturas" },
 ]
 
 const MORE_NAV: { href: string; icon: DesignIconName; label: string }[] = [
-  { href: "/categorias", icon: "tag", label: "Categorias" },
-  { href: "/metas", icon: "wallet", label: "Metas" },
+  { href: "/contas", icon: "wallet", label: "Contas e bancos" },
   { href: "/configuracoes", icon: "sliders", label: "Configurações" },
+  { href: "/categorias", icon: "tag", label: "Categorias" },
+  { href: "/orcamentos", icon: "target", label: "Orçamentos" },
+]
+
+const MOBILE_MORE: { href: string; icon: DesignIconName; label: string }[] = [
+  { href: "/fatura", icon: "card", label: "Fatura do cartão" },
+  { href: "/assinaturas", icon: "repeat", label: "Assinaturas" },
+  ...MORE_NAV,
 ]
 
 const PAGE_TITLES: { prefix: string; title: string }[] = [
   { prefix: "/transacoes", title: "Extrato" },
   { prefix: "/investimentos", title: "Investimentos" },
+  { prefix: "/fatura", title: "Fatura do cartão" },
+  { prefix: "/assinaturas", title: "Assinaturas" },
   { prefix: "/orcamentos", title: "Planejar gastos" },
   { prefix: "/categorias", title: "Categorias" },
   { prefix: "/metas", title: "Metas" },
   { prefix: "/configuracoes", title: "Configurações" },
+  { prefix: "/contas", title: "Contas e bancos" },
 ]
 
 function pageTitle(pathname: string) {
@@ -128,6 +143,15 @@ export function AppShell({
   const dark = resolvedTheme === "dark"
   const greet = pathname === "/painel"
 
+  useEffect(() => {
+    try {
+      const size = localStorage.getItem("financeiro-text-size")
+      document.documentElement.classList.toggle("text-grande", size === "grande")
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   return (
     <div className="min-h-full bg-ds-bg font-sans text-base text-ds-ink antialiased">
       <div className="flex min-h-dvh">
@@ -147,6 +171,18 @@ export function AppShell({
                 </span>
               </Link>
               {DESKTOP_NAV.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <NavRow
+                    icon={item.icon}
+                    label={item.label}
+                    active={isActive(pathname, item.href)}
+                  />
+                </Link>
+              ))}
+              <p className="px-3 pb-1.5 pt-5 text-sm font-semibold tracking-[0.06em] text-ds-subtle">
+                PLANEJAR
+              </p>
+              {PLANEJAR_NAV.map((item) => (
                 <Link key={item.href} href={item.href}>
                   <NavRow
                     icon={item.icon}
@@ -221,7 +257,12 @@ export function AppShell({
 
           <nav className="fixed right-0 bottom-0 left-0 z-40 flex items-start justify-between border-t border-ds-border bg-ds-surface px-2 pt-2 pb-7 lg:hidden">
             {MOBILE_NAV.map((item) => {
-              const on = item.href ? isActive(pathname, item.href) : moreOpen
+              const on = item.href
+                ? item.href === "/metas"
+                  ? pathname.startsWith("/metas") ||
+                    pathname.startsWith("/assinaturas")
+                  : isActive(pathname, item.href)
+                : moreOpen
               const inner = (
                 <span className="flex w-[72px] flex-col items-center gap-1 pt-0.5">
                   <span
@@ -278,7 +319,7 @@ export function AppShell({
             <SheetTitle className="text-ds-ink">Mais</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-1 px-2 pb-6">
-            {MORE_NAV.map((item) => (
+            {MOBILE_MORE.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

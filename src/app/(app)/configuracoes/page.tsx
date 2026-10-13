@@ -1,10 +1,13 @@
 import { eq } from "drizzle-orm"
 import { db } from "@/db"
-import { profiles } from "@/db/schema"
+import { accounts, profiles } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { resolvePluggyItemId } from "@/lib/pluggy/item-store"
 import { fetchItem, getApiKey } from "@/lib/pluggy/client"
+import { loadUserSettings } from "@/lib/user-settings"
+import { groupAccountsByBank } from "@/lib/banks"
+import { decAccount } from "@/lib/crypto/rows"
 import { ConfiguracoesClient } from "@/components/configuracoes-client"
 
 const STATUS_PT: Record<string, string> = {
@@ -20,6 +23,7 @@ const STATUS_PT: Record<string, string> = {
 export default async function ConfiguracoesPage() {
   const { userId, user } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
+  const settings = await loadUserSettings(crypto)
 
   const [profile] = await db
     .select({ nome: profiles.nome })
@@ -28,6 +32,11 @@ export default async function ConfiguracoesPage() {
     .limit(1)
 
   const nome = crypto.decryptFlex("nome", profile?.nome ?? null) ?? ""
+  const accountRows = await db
+    .select()
+    .from(accounts)
+    .where(eq(accounts.user_id, userId))
+  const banks = groupAccountsByBank(accountRows.map((a) => decAccount(crypto, a)))
 
   let pluggy: {
     connected: boolean
@@ -49,8 +58,7 @@ export default async function ConfiguracoesPage() {
     pluggy = {
       connected: ok,
       institution: item.connector?.name ?? null,
-      statusLabel:
-        STATUS_PT[item.status] ?? `Status: ${item.status}`,
+      statusLabel: STATUS_PT[item.status] ?? `Status: ${item.status}`,
       detail: item.error?.message ?? item.executionStatus ?? null,
     }
   } catch (error) {
@@ -70,6 +78,8 @@ export default async function ConfiguracoesPage() {
       nome={nome}
       email={user.email ?? ""}
       pluggy={pluggy}
+      settings={settings}
+      bankCount={banks.length}
     />
   )
 }

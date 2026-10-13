@@ -1,3 +1,12 @@
+export function todayYmd(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date)
+}
+
 export function formatBRL(value: number) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -29,6 +38,21 @@ export function shiftYearMonth(yearMonth: string, deltaMonths: number) {
   const [y, m] = yearMonth.split("-").map(Number)
   const d = new Date(y, m - 1 + deltaMonths, 1)
   return currentYearMonth(d)
+}
+
+export function isoToBrShort(isoDate: string) {
+  const [y, m, d] = isoDate.split("-")
+  if (!y || !m || !d) return isoDate
+  return `${d}/${m}`
+}
+
+export function monthLabelPt(yearMonth: string, style: "long" | "short" = "long") {
+  const [y, m] = yearMonth.split("-").map(Number)
+  const label = new Intl.DateTimeFormat("pt-BR", {
+    month: style,
+    year: "numeric",
+  }).format(new Date(y, m - 1, 1))
+  return label
 }
 
 export function cnSignClass(amount: number) {

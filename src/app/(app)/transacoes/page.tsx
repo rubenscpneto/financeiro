@@ -1,15 +1,16 @@
 import { Suspense } from "react"
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm"
 import { db } from "@/db"
-import { accounts, categories, transactions } from "@/db/schema"
+import { accounts, adjustments, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
-import { decAccount, decTransaction } from "@/lib/crypto/rows"
+import { decAccount, decAdjustment, decTransaction } from "@/lib/crypto/rows"
 import { TransacoesClient } from "@/components/transacoes-client"
-import { currentYearMonth, monthBounds } from "@/lib/format"
+import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
 import { accountIdsForBank, groupAccountsByBank } from "@/lib/banks"
 import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
+import { groupLoans, type AdjustmentRow } from "@/lib/loans"
 import type { Category, Transaction } from "@/lib/types"
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000"
@@ -24,19 +25,18 @@ export default async function TransacoesPage({
   const params = await searchParams
 
   const hasCustomRange = Boolean(params.from || params.to)
-  const yearMonth = !hasCustomRange
-    ? params.mes || currentYearMonth()
-    : null
+  const yearMonth = !hasCustomRange ? params.mes || currentYearMonth() : null
+  const today = todayYmd()
 
   let from = params.from
   let to = params.to
   if (yearMonth) {
     const bounds = monthBounds(yearMonth)
     from = bounds.start
-    to = bounds.end
+    to = yearMonth === currentYearMonth() ? today : bounds.end
   }
 
-  const [accountRows, categoryRows] = await Promise.all([
+  const [accountRows, categoryRows, adjRows] = await Promise.all([
     db
       .select()
       .from(accounts)
@@ -46,6 +46,10 @@ export default async function TransacoesPage({
       .from(categories)
       .where(eq(categories.user_id, userId))
       .orderBy(categories.name, categories.id),
+    db
+      .select()
+      .from(adjustments)
+      .where(eq(adjustments.user_id, userId)),
   ])
 
   const decodedAccounts = accountRows
@@ -64,41 +68,93 @@ export default async function TransacoesPage({
   if (from) filters.push(gte(transactions.date, from))
   if (to) filters.push(lte(transactions.date, to))
 
-  const txnRows = await db
-    .select({
-      txn: transactions,
-      account_name: accounts.name,
-      category_name: categories.name,
-    })
-    .from(transactions)
-    .leftJoin(accounts, eq(transactions.account_id, accounts.id))
-    .leftJoin(categories, eq(transactions.category_id, categories.id))
-    .where(and(...filters))
-    .orderBy(desc(transactions.date), desc(transactions.id))
-    .limit(1000)
+  const [txnRows, loanRows] = await Promise.all([
+    db
+      .select({
+        txn: transactions,
+        account_name: accounts.name,
+        category_name: categories.name,
+      })
+      .from(transactions)
+      .leftJoin(accounts, eq(transactions.account_id, accounts.id))
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(and(...filters))
+      .orderBy(desc(transactions.date), desc(transactions.id))
+      .limit(1000),
+    db
+      .select({
+        txn: transactions,
+        account_name: accounts.name,
+        category_name: categories.name,
+      })
+      .from(transactions)
+      .leftJoin(accounts, eq(transactions.account_id, accounts.id))
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(eq(transactions.user_id, userId))
+      .orderBy(desc(transactions.date))
+      .limit(4000),
+  ])
 
-  const mapped = decorateTransactions(
-    txnRows.map((row) => {
-      const txn = decTransaction(crypto, row.txn)
-      const accountName = row.account_name
-        ? crypto.decryptFlex("name", row.account_name)
-        : null
-      return {
-        ...txn,
-        accounts: accountName ? { name: accountName } : null,
-        category_name: row.category_name,
-      }
-    }),
-    { yearMonth, from, to }
+  const decodedAdj: AdjustmentRow[] = adjRows.map((a) => decAdjustment(crypto, a))
+
+  function mapRow(row: (typeof txnRows)[number]) {
+    const txn = decTransaction(crypto, row.txn)
+    const accountName = row.account_name
+      ? crypto.decryptFlex("name", row.account_name)
+      : null
+    return {
+      ...txn,
+      accounts: accountName ? { name: accountName } : null,
+      category_name: row.category_name,
+    }
+  }
+
+  const decorated = decorateTransactions(txnRows.map(mapRow), {
+    yearMonth,
+    from,
+    to,
+  })
+
+  const hiddenDuplicates = decorated.filter((t) => t.class.kind === "card_bill_hidden")
+  const visible = decorated.filter((t) => !t.class.hide)
+
+  const helpAdj = decodedAdj.filter(
+    (a) =>
+      a.kind === "family_help" &&
+      !a.undone_at &&
+      (!from || a.date >= from) &&
+      (!to || a.date <= to)
   )
-    .filter((t) => !t.class.hide)
-    .map((t) => ({
+  const helpSpend = helpAdj.reduce((s, a) => s + Math.abs(a.amount), 0)
+
+  const entrou = visible.reduce((s, t) => s + t.class.incomeDelta, 0)
+  const saiu =
+    visible.reduce((s, t) => s + t.class.expenseDelta, 0) + helpSpend
+  const cardBill = decorated
+    .filter((t) => t.class.kind === "card_bill")
+    .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0)
+  const between = decorated
+    .filter(
+      (t) =>
+        t.class.kind === "transfer" || t.class.kind === "investment_transfer"
+    )
+    .reduce((s, t) => s + (Number(t.amount) || 0), 0)
+  const loanOut = decorated
+    .filter((t) => t.class.kind === "loan" && Number(t.amount) < 0)
+    .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0)
+  const loanIn = decorated
+    .filter((t) => t.class.kind === "loan" && Number(t.amount) > 0)
+    .reduce((s, t) => s + (Number(t.amount) || 0), 0)
+
+  const mapped = visible.map((t) => {
+    const writeOff = decodedAdj.find(
+      (a) => a.kind === "family_help" && !a.undone_at && a.ref_id === t.id
+    )
+    return {
       ...t,
       categories: t.category_name
         ? {
-            name: categoryLabelPt(
-              t.class.categoryLabel ?? t.category_name
-            ),
+            name: categoryLabelPt(t.class.categoryLabel ?? t.category_name),
           }
         : t.class.categoryLabel
           ? { name: t.class.categoryLabel }
@@ -108,7 +164,30 @@ export default async function TransacoesPage({
       _pending: t.class.pending,
       _subLines: t.class.subLines,
       _installmentLabel: t.class.installmentLabel,
-    }))
+      _virouAjuda: Boolean(writeOff),
+    }
+  })
+
+  const helpRows = helpAdj.map((a) => {
+    let meta: { person?: string; originalDate?: string; originalAmount?: number } =
+      {}
+    try {
+      meta = a.notes ? JSON.parse(a.notes) : {}
+    } catch {
+      meta = {}
+    }
+    return {
+      id: a.id,
+      date: a.date,
+      person: meta.person ?? "Empréstimo",
+      originalDate: meta.originalDate ?? a.date,
+      originalAmount: meta.originalAmount ?? Math.abs(a.amount),
+      amount: a.amount,
+    }
+  })
+
+  const loanDecorated = decorateTransactions(loanRows.map(mapRow), {})
+  const loans = groupLoans(loanDecorated, decodedAdj)
 
   const displayCategories = (categoryRows as Category[]).map((c) => ({
     ...c,
@@ -127,12 +206,31 @@ export default async function TransacoesPage({
             _pending?: boolean
             _subLines?: { label: string; amount: number }[]
             _installmentLabel?: string | null
+            _virouAjuda?: boolean
           })[]}
           banks={banks.map((b) => ({ key: b.key, name: b.name }))}
           categories={displayCategories}
           yearMonth={yearMonth}
           from={from ?? ""}
           to={to ?? ""}
+          summary={{
+            entrou,
+            saiu,
+            sobrou: entrou - saiu,
+            cardBill,
+            between,
+            loanOut,
+            loanIn,
+            loanRemaining: loans.reduce((s, l) => s + l.remaining, 0),
+          }}
+          hiddenDuplicates={hiddenDuplicates.map((t) => ({
+            id: t.id,
+            description: t.description,
+            amount: Number(t.amount) || 0,
+            accountName: t.accounts?.name ?? "",
+          }))}
+          loans={loans}
+          helpRows={helpRows}
         />
       </Suspense>
     </div>

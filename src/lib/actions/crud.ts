@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { db } from "@/db"
 import {
+  adjustments,
   budgets,
   categories,
   categoryRules,
@@ -11,6 +12,8 @@ import {
   profiles,
   transactions,
 } from "@/db/schema"
+import { loadUserSettings, saveUserSettings, type UserSettings } from "@/lib/user-settings"
+import { todayYmd } from "@/lib/format"
 import { requireUser } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { assertCategoryOwned } from "@/lib/ownership"
@@ -278,6 +281,78 @@ export async function updateProfileNameAction(
     }
   }
   revalidatePath("/configuracoes")
+  revalidatePath("/painel")
+  return { ok: true }
+}
+
+export async function saveUserSettingsAction(
+  patch: Partial<UserSettings>
+): Promise<ActionResult> {
+  const { userId } = await requireUser()
+  const crypto = await getOrCreateUserCrypto(userId)
+  const current = await loadUserSettings(crypto)
+  const next: UserSettings = {
+    ...current,
+    ...patch,
+    alerts: { ...current.alerts, ...(patch.alerts ?? {}) },
+    dismissedWarningKeys: [
+      ...new Set([
+        ...current.dismissedWarningKeys,
+        ...(patch.dismissedWarningKeys ?? []),
+      ]),
+    ],
+  }
+  await saveUserSettings(crypto, next)
+  revalidatePath("/configuracoes")
+  revalidatePath("/assinaturas")
+  return { ok: true }
+}
+
+export async function writeOffLoanAction(input: {
+  loanTxnId: string
+  person: string
+  remaining: number
+  originalDate: string
+  originalAmount: number
+}): Promise<ActionResult> {
+  const { userId } = await requireUser()
+  const crypto = await getOrCreateUserCrypto(userId)
+  const remaining = Number(input.remaining) || 0
+  if (remaining <= 0) return { error: "Nada a registrar." }
+  const notes = JSON.stringify({
+    person: input.person,
+    originalDate: input.originalDate,
+    originalAmount: input.originalAmount,
+  })
+  try {
+    await db.insert(adjustments).values({
+      user_id: userId,
+      date: todayYmd(),
+      kind: "family_help",
+      category: crypto.encrypt("category", "Ajuda à família"),
+      amount: crypto.encryptNum("amount", -Math.abs(remaining)),
+      ref_id: input.loanTxnId,
+      notes: crypto.encrypt("notes", notes),
+    })
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Falha ao registrar.",
+    }
+  }
+  revalidatePath("/transacoes")
+  revalidatePath("/metas")
+  revalidatePath("/painel")
+  return { ok: true }
+}
+
+export async function undoWriteOffAction(id: string): Promise<ActionResult> {
+  const { userId } = await requireUser()
+  await db
+    .update(adjustments)
+    .set({ undone_at: new Date() })
+    .where(and(eq(adjustments.id, id), eq(adjustments.user_id, userId)))
+  revalidatePath("/transacoes")
+  revalidatePath("/metas")
   revalidatePath("/painel")
   return { ok: true }
 }

@@ -25,6 +25,16 @@ export type Account = {
   currency: string
   is_active: boolean
   pluggy_account_id: string | null
+  extra_meta?: AccountExtraMeta | null
+}
+
+export type AccountExtraMeta = {
+  creditLimit?: number | null
+  availableCreditLimit?: number | null
+  balanceCloseDate?: string | null
+  balanceDueDate?: string | null
+  brand?: string | null
+  level?: string | null
 }
 
 export type Category = {
@@ -98,6 +108,7 @@ export type InvestmentPosition = {
   rate_type: string | null
   amount_original: number | null
   amount_withdrawal: number | null
+  due_date: string | null
   external_hash: string
   is_active: boolean
 }
