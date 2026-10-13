@@ -116,6 +116,24 @@ export function reservaLivre(
   return roundCents(disponivelHoje - openBills)
 }
 
+export function splitReserveNets(
+  titles: { net: number; locked: boolean; excludeFromReserve: boolean }[]
+): { liquid: number; locked: number; excluded: number } {
+  let liquid = 0
+  let locked = 0
+  let excluded = 0
+  for (const t of titles) {
+    if (t.excludeFromReserve) excluded += t.net
+    else if (t.locked) locked += t.net
+    else liquid += t.net
+  }
+  return {
+    liquid: roundCents(liquid),
+    locked: roundCents(locked),
+    excluded: roundCents(excluded),
+  }
+}
+
 /** Daily-liquidity titles stay available; far-maturity CDBs do not. */
 export function isCdbLocked(
   p: { name?: string | null; dueDate?: string | null },

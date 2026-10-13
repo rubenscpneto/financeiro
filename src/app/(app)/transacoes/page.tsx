@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { and, desc, eq, gte, lte } from "drizzle-orm"
+import { and, desc, eq, gte, isNull, lte, or } from "drizzle-orm"
 import { db } from "@/db"
 import { accounts, adjustments, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
@@ -69,7 +69,17 @@ export default async function TransacoesPage({
   const bankIds = accountIdsForBank(banks, bank)
 
   const filters = [eq(transactions.user_id, userId)]
-  if (params.category_id) filters.push(eq(transactions.category_id, params.category_id))
+  if (params.category_id) {
+    filters.push(
+      or(
+        eq(transactions.user_category_id, params.category_id),
+        and(
+          isNull(transactions.user_category_id),
+          eq(transactions.category_id, params.category_id)
+        )
+      )!
+    )
+  }
   if (from) filters.push(gte(transactions.date, from))
   if (to) filters.push(lte(transactions.date, to))
 
@@ -101,6 +111,7 @@ export default async function TransacoesPage({
   ])
 
   const decodedAdj: AdjustmentRow[] = adjRows.map((a) => decAdjustment(crypto, a))
+  const catById = new Map(categoryRows.map((c) => [c.id, c.name]))
 
   function mapRow(row: (typeof txnRows)[number]) {
     const txn = decTransaction(crypto, row.txn)
@@ -111,6 +122,9 @@ export default async function TransacoesPage({
       ...txn,
       accounts: accountName ? { name: accountName } : null,
       category_name: row.category_name,
+      user_category_name: txn.user_category_id
+        ? catById.get(txn.user_category_id) ?? null
+        : null,
     }
   }
 

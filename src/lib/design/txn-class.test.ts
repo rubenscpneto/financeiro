@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { classifyTransaction, decorateTransactions } from "../txn-class.ts"
+import {
+  UNCLASSIFIED_PIX_MIN,
+  classifyTransaction,
+  decorateTransactions,
+} from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
 import { groupAccountsByBank, accountIdsForBank } from "../banks.ts"
 
@@ -346,4 +350,40 @@ test("A classificar spends until the user marks Empréstimo", () => {
   assert.equal(loan.isExpense, false)
   assert.equal(loan.kind, "loan")
   assert.equal(loan.categoryLabel, "Empréstimos")
+})
+
+test("unclassified outgoing Pix at or above the threshold is A classificar even with Transfer - PIX", () => {
+  assert.equal(UNCLASSIFIED_PIX_MIN, 500)
+  const big = classifyTransaction({
+    description: "Pix",
+    amount: -UNCLASSIFIED_PIX_MIN,
+    source_type: "checking",
+    source_category: "Transfer - PIX",
+    is_transfer: true,
+  })
+  assert.equal(big.isExpense, true)
+  assert.equal(big.kind, "expense")
+  assert.equal(big.categoryLabel, "A classificar")
+
+  const small = classifyTransaction({
+    description: "Pix",
+    amount: -(UNCLASSIFIED_PIX_MIN - 0.01),
+    source_type: "checking",
+    source_category: "Transfer - PIX",
+    is_transfer: true,
+  })
+  assert.equal(small.isExpense, true)
+  assert.equal(small.categoryLabel !== "A classificar", true)
+
+  const overridden = classifyTransaction({
+    description: "Pix",
+    amount: -800,
+    source_type: "checking",
+    source_category: "Transfer - PIX",
+    is_transfer: true,
+    user_category_name: "Empréstimos",
+  })
+  assert.equal(overridden.kind, "loan")
+  assert.equal(overridden.isExpense, false)
+  assert.equal(overridden.categoryLabel, "Empréstimos")
 })

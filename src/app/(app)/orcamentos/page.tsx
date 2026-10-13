@@ -5,7 +5,7 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { OrcamentosClient } from "@/components/orcamentos-client"
 import { currentYearMonth, monthBounds } from "@/lib/format"
-import { decorateTransactions } from "@/lib/txn-class"
+import { decorateTransactions, spendCategoryId } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Budget, Category } from "@/lib/types"
 import { decAccount } from "@/lib/crypto/rows"
@@ -46,6 +46,7 @@ export default async function OrcamentosPage({
       .select({
         id: transactions.id,
         category_id: transactions.category_id,
+        user_category_id: transactions.user_category_id,
         account_id: transactions.account_id,
         date: transactions.date,
         amount: transactions.amount,
@@ -78,6 +79,7 @@ export default async function OrcamentosPage({
     txns.map((t) => ({
       id: t.id,
       category_id: t.category_id,
+      user_category_id: t.user_category_id,
       account_id: t.account_id,
       date: t.date,
       amount: crypto.decryptNum("amount", t.amount),
@@ -89,6 +91,9 @@ export default async function OrcamentosPage({
       installment: crypto.decryptFlex("installment", t.installment),
       notes: crypto.decryptFlex("notes", t.notes),
       category_name: t.category_id ? catById.get(t.category_id) : null,
+      user_category_name: t.user_category_id
+        ? catById.get(t.user_category_id) ?? null
+        : null,
     })),
       { primaryAccountIds: primaryAccountIds(banks) }
     ),
@@ -96,12 +101,11 @@ export default async function OrcamentosPage({
   )
   const spentByCat = new Map<string, number>()
   for (const t of decorated) {
-    if (!t.category_id || t.class.hide || !t.class.countInCategory) continue
+    if (t.class.hide || !t.class.countInCategory) continue
     if (!t.class.expenseDelta) continue
-    spentByCat.set(
-      t.category_id,
-      (spentByCat.get(t.category_id) ?? 0) + t.class.expenseDelta
-    )
+    const catId = spendCategoryId(t)
+    if (!catId) continue
+    spentByCat.set(catId, (spentByCat.get(catId) ?? 0) + t.class.expenseDelta)
   }
 
   const rows = budgetRows.map((b) => ({

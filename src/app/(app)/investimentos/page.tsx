@@ -3,6 +3,7 @@ import { db } from "@/db"
 import {
   accounts,
   balanceSnapshots,
+  categories,
   investmentMovements,
   investmentPositions,
   transactions,
@@ -27,7 +28,7 @@ import {
 } from "@/lib/investments/net"
 import { parseAccountMeta } from "@/lib/account-meta"
 import { buildReserve, recurringMonthlySpend } from "@/lib/reserve"
-import { roundCents } from "@/lib/money-math"
+import { roundCents, splitReserveNets } from "@/lib/money-math"
 import { InvestimentosClient } from "@/components/investimentos-client"
 import type { ClassifiableTxn as Txn } from "@/lib/txn-class"
 
@@ -45,7 +46,7 @@ export default async function InvestimentosPage({
   const monthStart = monthBounds(ym).start
   const yearAgo = `${Number(asOf.slice(0, 4)) - 1}${asOf.slice(4)}`
 
-  const [positionRows, movementRows, accountRows, snapRows, txnRows] =
+  const [positionRows, movementRows, accountRows, snapRows, txnRows, categoryRows] =
     await Promise.all([
       db
         .select()
@@ -75,6 +76,10 @@ export default async function InvestimentosPage({
         .where(eq(transactions.user_id, userId))
         .orderBy(desc(transactions.date))
         .limit(4000),
+      db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(eq(categories.user_id, userId)),
     ])
 
   const accountsDecoded = accountRows.map((a) => {
@@ -103,12 +108,10 @@ export default async function InvestimentosPage({
   const iof = roundCents(titles.reduce((s, t) => s + t.iof, 0))
   const ir = roundCents(titles.reduce((s, t) => s + t.ir, 0))
   const earnings = roundCents(titles.reduce((s, t) => s + t.earnings, 0))
-  const liquid = roundCents(
-    titles.filter((t) => !t.locked).reduce((s, t) => s + t.net, 0)
-  )
-  const locked = roundCents(
-    titles.filter((t) => t.locked).reduce((s, t) => s + t.net, 0)
-  )
+  const split = splitReserveNets(titles)
+  const liquid = split.liquid
+  const locked = split.locked
+  const excluded = split.excluded
 
   const checking = snapRows
     .filter((s) => s.source_type === "checking" && balAcc.has(s.account_id))
@@ -124,6 +127,7 @@ export default async function InvestimentosPage({
     })
     .filter((b) => b.amount > 0)
 
+  const catById = new Map(categoryRows.map((c) => [c.id, c.name]))
   const txns: Txn[] = txnRows
     .filter((t) => scopedAcc.has(t.account_id))
     .map((t) => ({
@@ -134,6 +138,10 @@ export default async function InvestimentosPage({
     installment: crypto.decryptFlex("installment", t.installment),
     notes: crypto.decryptFlex("notes", t.notes),
     source_category: crypto.decryptFlex("source_category", t.source_category),
+    category_name: t.category_id ? catById.get(t.category_id) ?? null : null,
+    user_category_name: t.user_category_id
+      ? catById.get(t.user_category_id) ?? null
+      : null,
   }))
 
   const recurring = recurringMonthlySpend(txns, ym)
@@ -141,6 +149,7 @@ export default async function InvestimentosPage({
     disponivel,
     openBills: billLines,
     recurringSpend: recurring,
+    excluded,
   })
 
   const rates = await getCdiRates(yearAgo, asOf)
@@ -168,6 +177,7 @@ export default async function InvestimentosPage({
       earnings={earnings}
       liquid={liquid}
       locked={locked}
+      excluded={excluded}
       groups={groups}
       monthKpi={monthKpi}
       yearKpi={yearKpi}

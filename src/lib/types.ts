@@ -68,6 +68,7 @@ export type Transaction = {
   description: string
   amount: number
   category_id: string | null
+  user_category_id: string | null
   merchant: string | null
   installment: string | null
   external_hash: string
@@ -115,6 +116,7 @@ export type InvestmentPosition = {
   due_date: string | null
   external_hash: string
   is_active: boolean
+  exclude_from_reserve: boolean
 }
 
 export type InvestmentMovement = {

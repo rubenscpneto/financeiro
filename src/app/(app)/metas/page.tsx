@@ -4,6 +4,7 @@ import {
   accounts,
   adjustments,
   balanceSnapshots,
+  categories,
   goals,
   investmentPositions,
   transactions,
@@ -20,7 +21,7 @@ import { MetasClient } from "@/components/metas-client"
 import { currentYearMonth, todayYmd } from "@/lib/format"
 import { titledPosition } from "@/lib/investments/net"
 import { buildReserve, recurringMonthlySpend } from "@/lib/reserve"
-import { roundCents } from "@/lib/money-math"
+import { roundCents, splitReserveNets } from "@/lib/money-math"
 import { decorateTransactions } from "@/lib/txn-class"
 import { groupLoans } from "@/lib/loans"
 import type { Goal } from "@/lib/types"
@@ -31,7 +32,7 @@ export default async function MetasPage() {
   const asOf = todayYmd()
   const ym = currentYearMonth()
 
-  const [goalRows, positionRows, snapRows, accountRows, txnRows, adjRows] =
+  const [goalRows, positionRows, snapRows, accountRows, txnRows, adjRows, categoryRows] =
     await Promise.all([
       db
         .select()
@@ -65,6 +66,10 @@ export default async function MetasPage() {
         .select()
         .from(adjustments)
         .where(eq(adjustments.user_id, userId)),
+      db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(eq(categories.user_id, userId)),
     ])
 
   const mappedGoals = goalRows.map((g) => ({
@@ -77,7 +82,8 @@ export default async function MetasPage() {
   const titles = positionRows.map((p) =>
     titledPosition(decPosition(crypto, p), asOf)
   )
-  const liquid = titles.filter((t) => !t.locked).reduce((s, t) => s + t.net, 0)
+  const split = splitReserveNets(titles)
+  const liquid = split.liquid
   const checking = snapRows
     .filter((s) => s.source_type === "checking")
     .reduce((s, r) => s + crypto.decryptNum("balance", r.balance), 0)
@@ -93,7 +99,17 @@ export default async function MetasPage() {
     })
     .filter((b) => b.amount > 0)
 
-  const txns = txnRows.map((t) => decTransaction(crypto, t))
+  const catById = new Map(categoryRows.map((c) => [c.id, c.name]))
+  const txns = txnRows.map((t) => {
+    const d = decTransaction(crypto, t)
+    return {
+      ...d,
+      category_name: d.category_id ? catById.get(d.category_id) ?? null : null,
+      user_category_name: d.user_category_id
+        ? catById.get(d.user_category_id) ?? null
+        : null,
+    }
+  })
   const decorated = decorateTransactions(txns)
   const adj = adjRows.map((a) => decAdjustment(crypto, a))
   const loans = groupLoans(decorated, adj)
@@ -113,6 +129,7 @@ export default async function MetasPage() {
     disponivel: roundCents(liquid + checking),
     openBills: billLines,
     recurringSpend: recurringMonthlySpend(txns, ym),
+    excluded: split.excluded,
   })
 
   const helpRows = helpAdj.map((a) => {

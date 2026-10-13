@@ -120,11 +120,19 @@ export function MetasClient({
             Disponível hoje {brl(reserve.disponivel, hidden)} ·{" "}
             {reserve.monthsDisponivel.toFixed(1)} meses
           </p>
+          {reserve.excluded > 0 ? (
+            <p className="text-sm text-ds-muted">
+              Fora da reserva {brl(reserve.excluded, hidden)}
+            </p>
+          ) : null}
           <p className="text-sm leading-5 text-ds-muted">
             Vem sozinho dos investimentos com liquidez diária, já descontando as
-            faturas abertas ({brl(reserve.openBills, hidden)}). Gasto que se
-            repete: {brl(reserve.recurringSpend, hidden)} por mês. Faltam{" "}
-            {brl(reserve.falta, hidden)}.
+            faturas abertas ({brl(reserve.openBills, hidden)}
+            {reserve.excluded > 0
+              ? `) e o que está fora da reserva (${brl(reserve.excluded, hidden)}`
+              : ""}
+            ). Gasto que se repete: {brl(reserve.recurringSpend, hidden)} por mês.
+            Faltam {brl(reserve.falta, hidden)}.
           </p>
         </DsCard>
 

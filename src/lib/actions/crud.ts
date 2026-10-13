@@ -9,6 +9,7 @@ import {
   categories,
   categoryRules,
   goals,
+  investmentPositions,
   profiles,
   transactions,
 } from "@/db/schema"
@@ -16,7 +17,7 @@ import { loadUserSettings, saveUserSettings, type UserSettings } from "@/lib/use
 import { todayYmd } from "@/lib/format"
 import { requireUser } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
-import { assertCategoryOwned } from "@/lib/ownership"
+import { assertCategoryOwned, assertPositionOwned } from "@/lib/ownership"
 
 export type ActionResult = { ok?: true; error?: string }
 
@@ -125,7 +126,7 @@ export async function updateTransactionCategoryAction(
   await db
     .update(transactions)
     .set({
-      category_id,
+      user_category_id: category_id,
       is_transfer,
       updated_at: new Date(),
     })
@@ -133,6 +134,40 @@ export async function updateTransactionCategoryAction(
 
   revalidatePath("/transacoes")
   revalidatePath("/painel")
+  revalidatePath("/orcamentos")
+  revalidatePath("/metas")
+  revalidatePath("/investimentos")
+  return { ok: true }
+}
+
+export async function setPositionExcludeFromReserveAction(
+  formData: FormData
+): Promise<ActionResult> {
+  const { userId } = await requireUser()
+  const id = String(formData.get("id") ?? "")
+  const raw = String(formData.get("exclude_from_reserve") ?? "")
+  const exclude_from_reserve = raw === "true" || raw === "on"
+
+  const owned = await assertPositionOwned(userId, id)
+  if (!owned.ok) return { error: owned.error }
+
+  await db
+    .update(investmentPositions)
+    .set({
+      exclude_from_reserve,
+      updated_at: new Date(),
+    })
+    .where(
+      and(
+        eq(investmentPositions.id, id),
+        eq(investmentPositions.user_id, userId)
+      )
+    )
+
+  revalidatePath("/investimentos")
+  revalidatePath("/metas")
+  revalidatePath("/painel")
+  revalidatePath("/contas")
   return { ok: true }
 }
 

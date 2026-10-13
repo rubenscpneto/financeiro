@@ -26,6 +26,7 @@ export type PositionLike = {
   quantity: number
   avg_price: number
   current_price: number
+  exclude_from_reserve?: boolean | null
 }
 
 export type MovementLike = {
@@ -48,6 +49,7 @@ export type TitledPosition = {
   purchaseDate: string | null
   pctCdi: number | null
   locked: boolean
+  excludeFromReserve: boolean
 }
 
 function parsePctCdi(rate: number | null, rateType: string | null): number | null {
@@ -81,6 +83,7 @@ export function titledPosition(p: PositionLike, asOf: string): TitledPosition {
     purchaseDate: applied,
     pctCdi: parsePctCdi(p.rate, p.rate_type),
     locked: isLocked(p, asOf),
+    excludeFromReserve: Boolean(p.exclude_from_reserve),
   }
 }
 

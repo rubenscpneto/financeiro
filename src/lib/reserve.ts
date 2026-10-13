@@ -17,6 +17,7 @@ export type ReserveView = {
   progress: number
   falta: number
   billLines: { name: string; amount: number }[]
+  excluded: number
 }
 
 export function isOneOffTxn(t: {
@@ -68,6 +69,7 @@ export function buildReserve(input: {
   disponivel: number
   openBills: { name: string; amount: number }[]
   recurringSpend: number
+  excluded?: number
 }): ReserveView {
   const billSum = input.openBills.reduce((s, b) => s + b.amount, 0)
   const livre = reservaLivre(input.disponivel, billSum)
@@ -83,5 +85,6 @@ export function buildReserve(input: {
     progress: target > 0 ? livre / target : 0,
     falta: Math.max(0, target - livre),
     billLines: input.openBills,
+    excluded: input.excluded ?? 0,
   }
 }

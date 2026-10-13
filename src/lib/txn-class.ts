@@ -40,12 +40,17 @@ export type ClassifiableTxn = {
   source_category?: string | null
   category_name?: string | null
   category_id?: string | null
+  user_category_id?: string | null
+  user_category_name?: string | null
   is_transfer?: boolean
   merchant?: string | null
   installment?: string | null
   notes?: string | null
   account_id?: string | null
 }
+
+/** Outgoing Pix at or above this amount stays A classificar until the user classifies it. */
+export const UNCLASSIFIED_PIX_MIN = 500
 
 export type DecorateOpts = {
   yearMonth?: string | null
@@ -119,8 +124,21 @@ function isUnclassified(t: ClassifiableTxn) {
 }
 
 function spendingCategoryLabel(t: ClassifiableTxn): string | null {
+  if (t.user_category_name) {
+    const n = norm(t.user_category_name)
+    if (n === "a classificar" || n === "uncategorized" || n === "sem categoria") {
+      return "A classificar"
+    }
+    return t.user_category_name
+  }
   if (isUnclassified(t)) return "A classificar"
   return t.category_name ?? null
+}
+
+function isOutgoingPix(t: ClassifiableTxn, text: string) {
+  if ((Number(t.amount) || 0) >= 0) return false
+  if (t.source_type === "credit_card") return false
+  return /\bpix\b/.test(text) || /transfer\s*-?\s*pix/.test(text)
 }
 
 function isCdbOrInvestmentMove(text: string, sourceType?: string | null) {
@@ -257,7 +275,7 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
     })
   }
 
-  if (isLoan(text, t.category_name)) {
+  if (isLoan(text, t.user_category_name ?? t.category_name)) {
     return emptyClass({
       kind: "loan",
       pending,
@@ -320,6 +338,22 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
       isIncome: true,
       incomeDelta: amount,
       pending,
+      installmentLabel,
+    })
+  }
+
+  if (
+    !t.user_category_name &&
+    Math.abs(amount) >= UNCLASSIFIED_PIX_MIN &&
+    isOutgoingPix(t, text)
+  ) {
+    return emptyClass({
+      kind: "expense",
+      isExpense: true,
+      expenseDelta: Math.abs(amount),
+      countInCategory: true,
+      pending,
+      categoryLabel: "A classificar",
       installmentLabel,
     })
   }
@@ -515,6 +549,17 @@ export function decorateTransactions<T extends ClassifiableTxn>(
   }
 
   return rows
+}
+
+/** User override wins; unclassified "A classificar" does not count toward a Pluggy category. */
+export function spendCategoryId(t: {
+  user_category_id?: string | null
+  category_id?: string | null
+  class?: { categoryLabel?: string | null }
+}): string | null {
+  if (t.user_category_id) return t.user_category_id
+  if (t.class?.categoryLabel === "A classificar") return null
+  return t.category_id ?? null
 }
 
 export function countsAsIncome(t: ClassifiableTxn) {

@@ -474,7 +474,7 @@ export function TransacoesClient({
                           Mudar categoria
                           <select
                             className={`${control} h-9 max-w-52`}
-                            defaultValue={t.category_id ?? ""}
+                            defaultValue={t.user_category_id ?? ""}
                             disabled={pending}
                             onChange={(e) => {
                               const fd = new FormData()
@@ -502,7 +502,7 @@ export function TransacoesClient({
                     <div className="mt-2 ml-14">
                       <select
                         className={`${control} h-9 max-w-full sm:max-w-52`}
-                        defaultValue={t.category_id ?? ""}
+                        defaultValue={t.user_category_id ?? ""}
                         disabled={pending}
                         onChange={(e) => {
                           const fd = new FormData()

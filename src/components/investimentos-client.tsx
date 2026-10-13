@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
+import { toast } from "sonner"
 import { formatDateBR } from "@/lib/format"
+import { setPositionExcludeFromReserveAction } from "@/lib/actions/crud"
 import {
   Bar,
   DsCard,
@@ -33,6 +35,7 @@ export function InvestimentosClient({
   earnings,
   liquid,
   locked,
+  excluded,
   groups,
   monthKpi,
   yearKpi,
@@ -49,6 +52,7 @@ export function InvestimentosClient({
   earnings: number
   liquid: number
   locked: number
+  excluded: number
   groups: ProductGroup[]
   monthKpi: CdiKpi
   yearKpi: CdiKpi
@@ -60,6 +64,7 @@ export function InvestimentosClient({
 }) {
   const { hidden } = useHideValues()
   const [open, setOpen] = useState<string | null>(null)
+  const [pending, start] = useTransition()
   const total = net || 1
   const empty = groups.length === 0
 
@@ -146,8 +151,14 @@ export function InvestimentosClient({
                 className="bg-ds-warn"
                 style={{ width: `${(locked / total) * 100}%` }}
               />
+              {excluded > 0 ? (
+                <div
+                  className="bg-ds-muted"
+                  style={{ width: `${(excluded / total) * 100}%` }}
+                />
+              ) : null}
             </div>
-            <div className="flex justify-between gap-3 text-sm">
+            <div className="flex flex-wrap justify-between gap-3 text-sm">
               <p>
                 Disponível hoje{" "}
                 <span className="whitespace-nowrap font-semibold">
@@ -162,6 +173,15 @@ export function InvestimentosClient({
                 </span>{" "}
                 · {((locked / total) * 100).toFixed(1)}%
               </p>
+              {excluded > 0 ? (
+                <p>
+                  Fora da reserva{" "}
+                  <span className="whitespace-nowrap font-semibold">
+                    {brl(excluded, hidden)}
+                  </span>{" "}
+                  · {((excluded / total) * 100).toFixed(1)}%
+                </p>
+              ) : null}
             </div>
           </DsCard>
 
@@ -192,13 +212,14 @@ export function InvestimentosClient({
               </button>
               {open === g.key ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-left text-sm">
+                  <table className="w-full min-w-[620px] text-left text-sm">
                     <thead className="text-ds-muted">
                       <tr>
                         <th className="py-2 font-medium">Aplicado em</th>
                         <th className="py-2 font-medium">Vence em</th>
                         <th className="py-2 font-medium">Valor aplicado</th>
                         <th className="py-2 font-medium">Valor hoje</th>
+                        <th className="py-2 font-medium">Fora da reserva</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -215,6 +236,32 @@ export function InvestimentosClient({
                           </td>
                           <td className="py-2 whitespace-nowrap">
                             {brl(t.gross, hidden)}
+                          </td>
+                          <td className="py-2">
+                            <label className="flex items-center gap-2">
+                              <input
+                                key={`${t.id}-${t.excludeFromReserve}`}
+                                type="checkbox"
+                                className="size-4 accent-ds-accent"
+                                aria-label="Fora da reserva"
+                                defaultChecked={t.excludeFromReserve}
+                                disabled={pending}
+                                onChange={(e) => {
+                                  const fd = new FormData()
+                                  fd.set("id", t.id)
+                                  fd.set(
+                                    "exclude_from_reserve",
+                                    e.target.checked ? "true" : "false"
+                                  )
+                                  start(async () => {
+                                    const res =
+                                      await setPositionExcludeFromReserveAction(fd)
+                                    if (res.error) toast.error(res.error)
+                                  })
+                                }}
+                              />
+                              <span className="text-ds-muted">Fora da reserva</span>
+                            </label>
                           </td>
                         </tr>
                       ))}
@@ -243,6 +290,14 @@ export function InvestimentosClient({
               · {reserve.monthsDisponivel.toFixed(1)} meses
             </p>
             <Bar pct={reserve.progress} />
+            {reserve.excluded > 0 ? (
+              <p className="text-sm text-ds-muted">
+                Fora da reserva{" "}
+                <span className="whitespace-nowrap font-semibold">
+                  {brl(reserve.excluded, hidden)}
+                </span>
+              </p>
+            ) : null}
             <p className="text-sm leading-5 text-ds-muted">
               Contamos o gasto que se repete: {brl(reserve.recurringSpend, hidden)} por
               mês (média de 6 meses, sem compras pontuais). Faturas abertas:{" "}
@@ -251,6 +306,9 @@ export function InvestimentosClient({
                 .join(" + ") || "nenhuma"}
               {reserve.billLines.length
                 ? ` = ${brl(reserve.openBills, hidden)}`
+                : ""}
+              {reserve.excluded > 0
+                ? `. Fora da reserva: ${brl(reserve.excluded, hidden)}`
                 : ""}
               . Para 6 meses ({brl(reserve.target, hidden)}) faltam{" "}
               {brl(reserve.falta, hidden)} na reserva livre.

@@ -27,7 +27,7 @@ import {
   groupAccountsByBank,
   primaryAccountIds,
 } from "@/lib/banks"
-import { decorateTransactions } from "@/lib/txn-class"
+import { decorateTransactions, spendCategoryId } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Account } from "@/lib/types"
 
@@ -99,6 +99,7 @@ export default async function PainelPage({
         date: transactions.date,
         amount: transactions.amount,
         category_id: transactions.category_id,
+        user_category_id: transactions.user_category_id,
         account_id: transactions.account_id,
         is_transfer: transactions.is_transfer,
         source_type: transactions.source_type,
@@ -220,6 +221,7 @@ export default async function PainelPage({
           date: t.date,
           amount: crypto.decryptNum("amount", t.amount),
           category_id: t.category_id,
+          user_category_id: t.user_category_id,
           account_id: t.account_id,
           is_transfer: t.is_transfer,
           source_type: t.source_type,
@@ -229,6 +231,9 @@ export default async function PainelPage({
           installment: crypto.decryptFlex("installment", t.installment),
           notes: crypto.decryptFlex("notes", t.notes),
           category_name: t.category_id ? catName.get(t.category_id)?.name : null,
+          user_category_name: t.user_category_id
+            ? catName.get(t.user_category_id)?.name
+            : null,
         })),
         { primaryAccountIds: primaryAccountIds(banks) }
       ),
@@ -259,11 +264,9 @@ export default async function PainelPage({
       expense += cls.expenseDelta
       if (cls.expenseDelta > 0) bucket.saidas += cls.expenseDelta
     }
-    if (cls.countInCategory && t.category_id && cls.expenseDelta) {
-      byCat.set(
-        t.category_id,
-        (byCat.get(t.category_id) ?? 0) + cls.expenseDelta
-      )
+    if (cls.countInCategory && cls.expenseDelta) {
+      const catKey = spendCategoryId(t) ?? cls.categoryLabel ?? "Outros"
+      byCat.set(catKey, (byCat.get(catKey) ?? 0) + cls.expenseDelta)
     }
     byDay.set(day, bucket)
   }
@@ -277,19 +280,18 @@ export default async function PainelPage({
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 6)
     .map(([id, value]) => ({
-      name: categoryLabelPt(catName.get(id)?.name ?? "Outros"),
+      name: categoryLabelPt(catName.get(id)?.name ?? id),
       value,
       color: catName.get(id)?.color,
     }))
 
   const spentByCat = new Map<string, number>()
   for (const t of decorated) {
-    if (!t.category_id || t.class.hide || !t.class.countInCategory) continue
+    if (t.class.hide || !t.class.countInCategory) continue
     if (!t.class.expenseDelta) continue
-    spentByCat.set(
-      t.category_id,
-      (spentByCat.get(t.category_id) ?? 0) + t.class.expenseDelta
-    )
+    const catId = spendCategoryId(t)
+    if (!catId) continue
+    spentByCat.set(catId, (spentByCat.get(catId) ?? 0) + t.class.expenseDelta)
   }
 
   const budgetRows = budgetRowsRaw.map((b) => ({

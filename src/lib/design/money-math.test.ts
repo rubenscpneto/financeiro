@@ -10,6 +10,7 @@ import {
   irRate,
   isCdbLocked,
   pctOfCdi,
+  splitReserveNets,
   rendimentoExcludingFlows,
   reservaLivre,
   reserveMonths,
@@ -163,5 +164,18 @@ describe("reserva livre", () => {
       .reduce((s, n) => s + n, 0)
     assert.equal(liquid, dailyNet)
     assert.equal(reservaLivre(liquid + checking, openBill), 6900)
+  })
+
+  it("flags excludeFromReserve titles as Fora da reserva", () => {
+    const split = splitReserveNets([
+      { net: 5300, locked: false, excludeFromReserve: false },
+      { net: 12000, locked: true, excludeFromReserve: false },
+      { net: 8000, locked: false, excludeFromReserve: true },
+      { net: 1500, locked: true, excludeFromReserve: true },
+    ])
+    assert.equal(split.liquid, 5300)
+    assert.equal(split.locked, 12000)
+    assert.equal(split.excluded, 9500)
+    assert.equal(reservaLivre(split.liquid + 2000, 400), 6900)
   })
 })
