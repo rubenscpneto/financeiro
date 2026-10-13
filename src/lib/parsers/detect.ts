@@ -2,7 +2,6 @@ import { parseC6CheckingCsv } from './c6-checking-csv'
 import { parseC6CreditCsv } from './c6-credit-csv'
 import { parseC6InvestCsv } from './c6-invest-csv'
 import { parseC6Ofx } from './c6-ofx'
-import { parseC6Pdf } from './c6-pdf'
 import {
   isPasswordError,
   isZipBuffer,
@@ -57,6 +56,7 @@ export async function parseStatement({
 
   if (extension === 'pdf') {
     try {
+      const { parseC6Pdf } = await import('./c6-pdf')
       return await parseC6Pdf(buffer, password, sourceType)
     } catch (error) {
       if (isPasswordError(error)) throw new Error(PASSWORD_HINT)

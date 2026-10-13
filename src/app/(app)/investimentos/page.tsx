@@ -1,4 +1,7 @@
-import { createClient } from "@/lib/server"
+import { and, desc, eq } from "drizzle-orm"
+import { db } from "@/db"
+import { accounts, investmentMovements, investmentPositions } from "@/db/schema"
+import { requireUserOrRedirect } from "@/lib/auth-session"
 import {
   type AssetClass,
   type InvestmentMovement,
@@ -16,34 +19,52 @@ import {
   type MovimentoView,
 } from "@/components/investimentos-client"
 
-type PositionRow = InvestmentPosition & {
-  accounts: { institution: string } | { institution: string }[] | null
-}
-
-function institutionOf(p: PositionRow): string {
-  const acc = p.accounts
-  if (!acc) return ""
-  if (Array.isArray(acc)) return acc[0]?.institution ?? ""
-  return acc.institution ?? ""
-}
-
 export default async function InvestimentosPage() {
-  const supabase = await createClient()
-  const [{ data: positions }, { data: movements }] = await Promise.all([
-    supabase
-      .from("investment_positions")
-      .select("*, accounts!inner(institution, type)")
-      .eq("is_active", true)
-      .eq("accounts.type", "investment")
-      .order("asset_name"),
-    supabase
-      .from("investment_movements")
-      .select("*")
-      .order("date", { ascending: false }),
+  const { userId } = await requireUserOrRedirect()
+  const [positionRows, movementRows] = await Promise.all([
+    db
+      .select({
+        position: investmentPositions,
+        institution: accounts.institution,
+      })
+      .from(investmentPositions)
+      .innerJoin(accounts, eq(investmentPositions.account_id, accounts.id))
+      .where(
+        and(
+          eq(investmentPositions.user_id, userId),
+          eq(investmentPositions.is_active, true),
+          eq(accounts.type, "investment")
+        )
+      )
+      .orderBy(investmentPositions.asset_name),
+    db
+      .select()
+      .from(investmentMovements)
+      .where(eq(investmentMovements.user_id, userId))
+      .orderBy(desc(investmentMovements.date)),
   ])
 
-  const list = (positions ?? []) as PositionRow[]
-  const movs = (movements ?? []) as InvestmentMovement[]
+  const list = positionRows.map((row) => ({
+    ...row.position,
+    quantity: Number(row.position.quantity),
+    avg_price: Number(row.position.avg_price),
+    current_price: Number(row.position.current_price),
+    rate: row.position.rate != null ? Number(row.position.rate) : null,
+    amount_original:
+      row.position.amount_original != null
+        ? Number(row.position.amount_original)
+        : null,
+    amount_withdrawal:
+      row.position.amount_withdrawal != null
+        ? Number(row.position.amount_withdrawal)
+        : null,
+    institution: row.institution ?? "",
+  })) as (InvestmentPosition & { institution: string })[]
+
+  const movs = movementRows.map((m) => ({
+    ...m,
+    amount: Number(m.amount),
+  })) as InvestmentMovement[]
 
   const firstAporteByPosition = new Map<string, string>()
   for (const m of [...movs].reverse()) {
@@ -53,14 +74,12 @@ export default async function InvestimentosPage() {
     }
   }
 
-  let currentTotal = 0
   const ativos: AtivoView[] = list.map((p) => {
     const valorAtual = positionCurrentValue(p)
     const valorInvestido = positionInvestedValue(p)
     const rendimento = valorAtual - valorInvestido
     const rendimentoPct =
       valorInvestido > 0 ? (rendimento / valorInvestido) * 100 : null
-    currentTotal += valorAtual
 
     const investedAt =
       p.purchase_date ?? firstAporteByPosition.get(p.id) ?? p.as_of
@@ -70,7 +89,7 @@ export default async function InvestimentosPage() {
       assetName: p.asset_name,
       ticker: p.ticker,
       assetClass: p.asset_class as AssetClass,
-      institution: institutionOf(p),
+      institution: p.institution,
       investedAt,
       rentabilidade: formatRentabilidade(
         p.rate != null ? Number(p.rate) : null,
@@ -83,6 +102,7 @@ export default async function InvestimentosPage() {
       portfolioPct: 0,
     }
   })
+  const currentTotal = ativos.reduce((sum, a) => sum + a.valorAtual, 0)
 
   for (const a of ativos) {
     a.portfolioPct =

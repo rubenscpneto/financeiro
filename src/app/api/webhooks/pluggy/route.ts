@@ -1,6 +1,4 @@
 import { after, NextResponse } from "next/server"
-import { runPluggySync } from "@/lib/pluggy/sync"
-import { createAdminClient } from "@/lib/supabase-admin"
 import { getItemId } from "@/lib/pluggy/client"
 
 export const runtime = "nodejs"
@@ -72,11 +70,10 @@ export async function POST(req: Request) {
     )
   }
 
-  // Ack immediately; Pluggy requires 2xx within 5s
   after(async () => {
     try {
-      const supabase = createAdminClient()
-      const result = await runPluggySync(supabase, userId)
+      const { runPluggySync } = await import("@/lib/pluggy/sync")
+      const result = await runPluggySync(userId)
       if (result.error) {
         console.error("[pluggy webhook] sync failed", result.error)
       } else {

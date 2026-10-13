@@ -1,7 +1,23 @@
-import { PDFParse } from 'pdf-parse'
-
 import { makeHash, parseBrDate, parseBrMoney } from './normalize'
 import type { AccountSourceType, ParseResult, ParsedTransaction } from './types'
+
+function polyfillDomMatrix(canvas: {
+  DOMMatrix?: unknown
+  ImageData?: unknown
+  Path2D?: unknown
+}) {
+  const g = globalThis as unknown as Record<string, unknown>
+  if (g.DOMMatrix == null && canvas.DOMMatrix) g.DOMMatrix = canvas.DOMMatrix
+  if (g.ImageData == null && canvas.ImageData) g.ImageData = canvas.ImageData
+  if (g.Path2D == null && canvas.Path2D) g.Path2D = canvas.Path2D
+}
+
+async function loadPdfParse() {
+  const canvas = await import('@napi-rs/canvas')
+  polyfillDomMatrix(canvas)
+  const { PDFParse } = await import('pdf-parse')
+  return PDFParse
+}
 
 const DATE_PATTERN = /\b(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/
 const MONEY_PATTERN = /-?\s*(?:R\$\s*)?(?:\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2}|\d+\.\d{2})\b/g
@@ -12,6 +28,7 @@ export async function parseC6Pdf(
   sourceType: AccountSourceType = 'checking',
 ): Promise<ParseResult> {
   const warnings: string[] = []
+  const PDFParse = await loadPdfParse()
   const parser = new PDFParse({ data: buffer, password })
 
   try {

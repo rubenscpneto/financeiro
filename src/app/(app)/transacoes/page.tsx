@@ -1,10 +1,10 @@
 import { Suspense } from "react"
-import { createClient } from "@/lib/server"
+import { and, desc, eq, gte, lte } from "drizzle-orm"
+import { db } from "@/db"
+import { accounts, categories, transactions } from "@/db/schema"
+import { requireUserOrRedirect } from "@/lib/auth-session"
 import { TransacoesClient } from "@/components/transacoes-client"
-import {
-  currentYearMonth,
-  monthBounds,
-} from "@/lib/format"
+import { currentYearMonth, monthBounds } from "@/lib/format"
 import type { Account, Category, Transaction } from "@/lib/types"
 
 export default async function TransacoesPage({
@@ -12,8 +12,8 @@ export default async function TransacoesPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>
 }) {
+  const { userId } = await requireUserOrRedirect()
   const params = await searchParams
-  const supabase = await createClient()
 
   const hasCustomRange = Boolean(params.from || params.to)
   const yearMonth = !hasCustomRange
@@ -28,27 +28,43 @@ export default async function TransacoesPage({
     to = bounds.end
   }
 
-  let query = supabase
-    .from("transactions")
-    .select("*, accounts(name), categories(name)")
-    .order("date", { ascending: false })
-    .limit(1000)
+  const filters = [eq(transactions.user_id, userId)]
+  if (params.account_id) filters.push(eq(transactions.account_id, params.account_id))
+  if (params.category_id) filters.push(eq(transactions.category_id, params.category_id))
+  if (from) filters.push(gte(transactions.date, from))
+  if (to) filters.push(lte(transactions.date, to))
 
-  if (params.account_id) query = query.eq("account_id", params.account_id)
-  if (params.category_id) query = query.eq("category_id", params.category_id)
-  if (from) query = query.gte("date", from)
-  if (to) query = query.lte("date", to)
+  const [txnRows, accountRows, categoryRows] = await Promise.all([
+    db
+      .select({
+        txn: transactions,
+        account_name: accounts.name,
+        category_name: categories.name,
+      })
+      .from(transactions)
+      .leftJoin(accounts, eq(transactions.account_id, accounts.id))
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(and(...filters))
+      .orderBy(desc(transactions.date))
+      .limit(1000),
+    db
+      .select()
+      .from(accounts)
+      .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true)))
+      .orderBy(accounts.name),
+    db
+      .select()
+      .from(categories)
+      .where(eq(categories.user_id, userId))
+      .orderBy(categories.name),
+  ])
 
-  const [{ data: transactions }, { data: accounts }, { data: categories }] =
-    await Promise.all([
-      query,
-      supabase
-        .from("accounts")
-        .select("*")
-        .eq("is_active", true)
-        .order("name"),
-      supabase.from("categories").select("*").order("name"),
-    ])
+  const mapped = txnRows.map((row) => ({
+    ...row.txn,
+    amount: Number(row.txn.amount),
+    accounts: row.account_name ? { name: row.account_name } : null,
+    categories: row.category_name ? { name: row.category_name } : null,
+  }))
 
   const periodLabel = yearMonth
     ? yearMonth
@@ -66,12 +82,12 @@ export default async function TransacoesPage({
       </div>
       <Suspense>
         <TransacoesClient
-          transactions={(transactions ?? []) as (Transaction & {
+          transactions={mapped as (Transaction & {
             accounts?: { name: string } | null
             categories?: { name: string } | null
           })[]}
-          accounts={(accounts ?? []) as Account[]}
-          categories={(categories ?? []) as Category[]}
+          accounts={accountRows as Account[]}
+          categories={categoryRows as Category[]}
           yearMonth={yearMonth}
           from={from ?? ""}
           to={to ?? ""}

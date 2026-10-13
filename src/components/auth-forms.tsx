@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import {
   loginAction,
-  signupAction,
   resetPasswordRequestAction,
   updatePasswordAction,
 } from "@/lib/actions/auth"
@@ -102,109 +101,6 @@ export function LoginForm() {
   )
 }
 
-export function SignupForm() {
-  const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
-  const searchParams = useSearchParams()
-  const enviado = searchParams.get("enviado") === "1"
-
-  if (enviado) {
-    return (
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Verifique seu e-mail</CardTitle>
-          <CardDescription>
-            Enviamos um link para confirmar sua conta. Abra o e-mail e clique em
-            confirmar para entrar.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-center text-sm text-muted-foreground">
-            Já confirmou?{" "}
-            <Link href="/auth/login" className="text-foreground underline">
-              Entrar
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Criar conta</CardTitle>
-        <CardDescription>
-          Controle pessoal das suas finanças.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          action={(fd) => {
-            startTransition(async () => {
-              const res = await signupAction(fd)
-              if (res?.error) setError(res.error)
-            })
-          }}
-        >
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="nome">Nome</FieldLabel>
-              <Input id="nome" name="nome" autoComplete="name" />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="email">E-mail</FieldLabel>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="password">Senha</FieldLabel>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={6}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="password_confirm">Confirmar senha</FieldLabel>
-              <Input
-                id="password_confirm"
-                name="password_confirm"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={6}
-              />
-            </Field>
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-            <Button type="submit" disabled={pending} className="w-full">
-              {pending ? "Criando…" : "Criar conta"}
-            </Button>
-            <p className="text-center text-sm text-muted-foreground">
-              Já tem conta?{" "}
-              <Link href="/auth/login" className="text-foreground underline">
-                Entrar
-              </Link>
-            </p>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
-  )
-}
-
 export function ForgotPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
@@ -286,6 +182,8 @@ export function ForgotPasswordForm() {
 export function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const searchParams = useSearchParams()
+  const token = searchParams.get("token") ?? ""
 
   return (
     <Card className="w-full max-w-md">
@@ -302,6 +200,7 @@ export function ResetPasswordForm() {
             })
           }}
         >
+          <input type="hidden" name="token" value={token} />
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="password">Nova senha</FieldLabel>

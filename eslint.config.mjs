@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Vendored Superpowers scripts (CJS) are not app code:
     ".cursor/**",
+    "drizzle/**",
+    "scripts/migrate.mjs",
   ]),
 ]);
 
