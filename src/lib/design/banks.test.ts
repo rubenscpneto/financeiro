@@ -8,6 +8,7 @@ import {
   dedupeTransactions,
   filterByAccountIds,
   groupAccountsByBank,
+  bankSyncStatus,
   hideBankFilter,
   pickBalanceAccountIds,
   resolveBank,
@@ -193,4 +194,10 @@ test("headline suffix is ' no C6'", () => {
   ])
   assert.equal(bankHeadlineSuffix(groups, "c6"), " no C6")
   assert.equal(bankHeadlineSuffix(groups, null), "")
+})
+
+test("seeded accounts without Pluggy show no sync status", () => {
+  assert.equal(bankSyncStatus({ hasPluggy: false, itemOk: false, stale: false }), "none")
+  assert.equal(bankSyncStatus({ hasPluggy: true, itemOk: true, stale: false }), "ok")
+  assert.equal(bankSyncStatus({ hasPluggy: true, itemOk: false, stale: false }), "error")
 })

@@ -1,4 +1,4 @@
-import type { DecoratedTxn } from "@/lib/txn-class"
+import type { DecoratedTxn } from "./txn-class"
 
 export type LoanGroup = {
   key: string
@@ -113,4 +113,15 @@ export function groupLoans<T extends DecoratedTxn<{
   return [...map.values()].sort(
     (a, b) => b.remaining - a.remaining || a.person.localeCompare(b.person, "pt-BR")
   )
+}
+
+export function receivablesTotal(
+  loans: LoanGroup[],
+  refunds: { amount: number }[]
+): number {
+  const open = loans
+    .filter((l) => l.remaining > 0 && !l.writtenOff)
+    .reduce((s, l) => s + l.remaining, 0)
+  const pending = refunds.reduce((s, r) => s + Math.abs(r.amount), 0)
+  return Math.round((open + pending) * 100) / 100
 }

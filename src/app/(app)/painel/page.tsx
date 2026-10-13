@@ -13,7 +13,7 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount } from "@/lib/crypto/rows"
 import { PainelClient } from "@/components/painel-client"
-import { currentYearMonth, monthBounds } from "@/lib/format"
+import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
 import { positionCurrentValue } from "@/lib/investments/value"
 import {
   accountBankById,
@@ -27,7 +27,7 @@ import {
   groupAccountsByBank,
   primaryAccountIds,
 } from "@/lib/banks"
-import { decorateTransactions, spendCategoryId } from "@/lib/txn-class"
+import { decorateTransactions, spendCategoryId, sumSpending } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Account } from "@/lib/types"
 
@@ -43,7 +43,9 @@ export default async function PainelPage({
   const params = await searchParams
   const bank = bankFromParams(params.bank)
   const yearMonth = currentYearMonth()
-  const { start, end } = monthBounds(yearMonth)
+  const { start, end: monthEnd } = monthBounds(yearMonth)
+  const today = todayYmd()
+  const end = yearMonth === currentYearMonth() && today < monthEnd ? today : monthEnd
 
   const accountRows = await db
     .select()
@@ -247,7 +249,7 @@ export default async function PainelPage({
   const scopedDecorated = filterByAccountIds(decorated, txnIds)
 
   let income = 0
-  let expense = 0
+  const expense = sumSpending(scopedDecorated)
   const byDay = new Map<string, { entradas: number; saidas: number }>()
   const byCat = new Map<string, number>()
 
@@ -261,7 +263,6 @@ export default async function PainelPage({
       bucket.entradas += cls.incomeDelta
     }
     if (cls.expenseDelta) {
-      expense += cls.expenseDelta
       if (cls.expenseDelta > 0) bucket.saidas += cls.expenseDelta
     }
     if (cls.countInCategory && cls.expenseDelta) {

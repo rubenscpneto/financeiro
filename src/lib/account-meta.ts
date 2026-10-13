@@ -1,4 +1,4 @@
-import type { AccountExtraMeta } from "@/lib/types"
+import type { AccountExtraMeta } from "./types"
 
 export function parseAccountMeta(
   raw: string | null | undefined

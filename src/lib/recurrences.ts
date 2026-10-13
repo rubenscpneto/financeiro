@@ -1,4 +1,10 @@
-import { addMonthsYm } from "@/lib/txn-class"
+import {
+  addMonthsYm,
+  classifyTransaction,
+  isOutgoingPix,
+  parseInstallment,
+  type ClassifiableTxn,
+} from "./txn-class.ts"
 
 export type RecurrenceCharge = {
   id: string
@@ -201,4 +207,69 @@ export function detectRecurrences(
 
 export function nextMonthLabel(iso: string) {
   return addMonthsYm(iso, 1)
+}
+
+function ymOf(iso: string) {
+  return iso.slice(0, 7)
+}
+
+function similarAmount(a: number, b: number) {
+  return Math.abs(a - b) / Math.max(a, b, 0.01) <= 0.1
+}
+
+function isRecurringEligible(t: ClassifiableTxn) {
+  if ((Number(t.amount) || 0) >= 0) return false
+  if (parseInstallment(t.installment)) return false
+  const cls = classifyTransaction(t)
+  if (
+    cls.kind === "iof" ||
+    cls.kind === "loan" ||
+    cls.kind === "transfer" ||
+    cls.kind === "card_bill" ||
+    cls.kind === "card_bill_hidden" ||
+    cls.kind === "investment_transfer"
+  ) {
+    return false
+  }
+  if (isOutgoingPix(t)) return false
+  return cls.kind === "expense"
+}
+
+/** Same merchant in ≥2 of the last 3 months, similar amount. */
+export function recurringMonthlySpend(
+  txns: (ClassifiableTxn & { id?: string; accountName?: string | null })[],
+  asOfYm: string,
+  months = 3
+): number {
+  const window = new Set<string>()
+  for (let i = 0; i < months; i++) {
+    window.add(addMonthsYm(`${asOfYm}-01`, -i))
+  }
+  const byMerchant = new Map<string, { amount: number; ym: string }[]>()
+  for (const t of txns) {
+    if (!t.date || !window.has(ymOf(t.date))) continue
+    if (!isRecurringEligible(t)) continue
+    const name = merchantName(t)
+    const key = norm(name)
+    if (!key) continue
+    const list = byMerchant.get(key) ?? []
+    list.push({ amount: Math.abs(Number(t.amount) || 0), ym: ymOf(t.date) })
+    byMerchant.set(key, list)
+  }
+
+  let monthly = 0
+  for (const charges of byMerchant.values()) {
+    const clusters: { amount: number; ym: string }[][] = []
+    for (const c of charges) {
+      const cluster = clusters.find((g) => similarAmount(g[0].amount, c.amount))
+      if (cluster) cluster.push(c)
+      else clusters.push([c])
+    }
+    for (const cluster of clusters) {
+      const monthsHit = new Set(cluster.map((c) => c.ym))
+      if (monthsHit.size < 2) continue
+      monthly += median(cluster.map((c) => c.amount))
+    }
+  }
+  return Math.round(monthly * 100) / 100
 }

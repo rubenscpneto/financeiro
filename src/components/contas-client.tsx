@@ -31,6 +31,7 @@ export function ContasClient({
     investCount: number
     total: number
     statusLabel: string
+    sync: "none" | "ok" | "stale" | "error"
   }[]
 }) {
   const { hidden } = useHideValues()
@@ -43,24 +44,33 @@ export function ContasClient({
         {banks.map((b) => (
           <DsCard key={b.key}>
             <div className="flex items-start gap-3">
-              <IconBadge name="wallet" tone={b.ok ? "ok" : "warn"} />
+              <IconBadge
+                name="wallet"
+                tone={b.sync === "none" ? "neutral" : b.ok ? "ok" : "warn"}
+              />
               <div className="min-w-0 flex-1">
                 <p className="text-lg font-semibold">{b.name}</p>
-                <p className="flex items-center gap-2 text-sm text-ds-muted">
-                  <span
-                    className={
-                      b.ok ? "size-2 rounded-full bg-ds-ok-dot" : "size-2 rounded-full bg-ds-warn"
-                    }
-                  />
-                  {b.ok
-                    ? `Conectado · atualizado${b.hours != null ? ` há ${b.hours < 24 ? `${b.hours} hora${b.hours === 1 ? "" : "s"}` : `${Math.round(b.hours / 24)} dia${Math.round(b.hours / 24) === 1 ? "" : "s"}`}` : ""}`
-                    : b.stale
-                      ? `Precisa reconectar · última atualização há ${Math.round((b.hours ?? 72) / 24)} dias`
-                      : "Erro ao atualizar · tentar de novo"}
-                </p>
-                <p className="text-sm text-ds-subtle">
-                  via Meu Pluggy · {b.itemCount} {b.itemCount === 1 ? "item junto" : "itens juntos"}
-                </p>
+                {b.sync !== "none" ? (
+                  <>
+                    <p className="flex items-center gap-2 text-sm text-ds-muted">
+                      <span
+                        className={
+                          b.ok ? "size-2 rounded-full bg-ds-ok-dot" : "size-2 rounded-full bg-ds-warn"
+                        }
+                      />
+                      {b.ok
+                        ? `Conectado · atualizado${b.hours != null ? ` há ${b.hours < 24 ? `${b.hours} hora${b.hours === 1 ? "" : "s"}` : `${Math.round(b.hours / 24)} dia${Math.round(b.hours / 24) === 1 ? "" : "s"}`}` : ""}`
+                        : b.stale
+                          ? `Precisa reconectar · última atualização há ${Math.round((b.hours ?? 72) / 24)} dias`
+                          : "Erro ao atualizar · tentar de novo"}
+                    </p>
+                    <p className="text-sm text-ds-subtle">
+                      via Meu Pluggy · {b.itemCount} {b.itemCount === 1 ? "item junto" : "itens juntos"}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-ds-muted">Conta manual</p>
+                )}
               </div>
             </div>
 
@@ -108,7 +118,7 @@ export function ContasClient({
               </div>
             ) : null}
 
-            {b.ok ? (
+            {b.sync === "none" ? null : b.ok ? (
               <p className="text-sm text-ds-subtle">
                 Próxima atualização perto das 13h. O app só lê os dados; quem
                 atualiza é o Meu Pluggy.

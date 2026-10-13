@@ -17,9 +17,14 @@ import {
   groupAccountsByBank,
   primaryAccountIds,
 } from "@/lib/banks"
-import { decorateTransactions } from "@/lib/txn-class"
+import {
+  UNCLASSIFIED_FILTER,
+  decorateTransactions,
+  matchesCategoryFilter,
+  sumSpending,
+} from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
-import { groupLoans, type AdjustmentRow } from "@/lib/loans"
+import { groupLoans, receivablesTotal, type AdjustmentRow } from "@/lib/loans"
 import type { Category, Transaction } from "@/lib/types"
 
 export default async function TransacoesPage({
@@ -69,7 +74,7 @@ export default async function TransacoesPage({
   const bankIds = accountIdsForBank(banks, bank)
 
   const filters = [eq(transactions.user_id, userId)]
-  if (params.category_id) {
+  if (params.category_id && params.category_id !== UNCLASSIFIED_FILTER) {
     filters.push(
       or(
         eq(transactions.user_category_id, params.category_id),
@@ -141,7 +146,9 @@ export default async function TransacoesPage({
     }
   )
 
-  const scoped = filterByAccountIds(decorated, bankIds)
+  const scoped = filterByAccountIds(decorated, bankIds).filter((t) =>
+    matchesCategoryFilter(t, params.category_id ?? "")
+  )
   const hiddenDuplicates = scoped.filter((t) => t.class.kind === "card_bill_hidden")
   const visible = scoped.filter((t) => !t.class.hide)
 
@@ -155,11 +162,14 @@ export default async function TransacoesPage({
   const helpSpend = helpAdj.reduce((s, a) => s + Math.abs(a.amount), 0)
 
   const entrou = visible.reduce((s, t) => s + t.class.incomeDelta, 0)
-  const saiu =
-    visible.reduce((s, t) => s + t.class.expenseDelta, 0) + helpSpend
-  const cardBill = scoped
+  const saiu = sumSpending(visible) + helpSpend
+  const checkingBill = scoped
     .filter((t) => t.class.kind === "card_bill")
     .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0)
+  const cardSideBill = scoped
+    .filter((t) => t.class.kind === "card_bill_hidden")
+    .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0)
+  const cardBill = Math.max(checkingBill, cardSideBill)
   const between = scoped
     .filter(
       (t) =>
@@ -252,7 +262,7 @@ export default async function TransacoesPage({
             between,
             loanOut,
             loanIn,
-            loanRemaining: loans.reduce((s, l) => s + l.remaining, 0),
+            loanRemaining: receivablesTotal(loans, []),
           }}
           hiddenDuplicates={hiddenDuplicates.map((t) => ({
             id: t.id,

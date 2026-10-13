@@ -462,3 +462,14 @@ export function filterByAccountIds<T extends { account_id?: string | null }>(
   const set = new Set(accountIds)
   return rows.filter((r) => r.account_id != null && set.has(r.account_id))
 }
+
+export function bankSyncStatus(input: {
+  hasPluggy: boolean
+  itemOk: boolean
+  stale: boolean
+}): "none" | "ok" | "stale" | "error" {
+  if (!input.hasPluggy) return "none"
+  if (input.stale) return "stale"
+  if (input.itemOk) return "ok"
+  return "error"
+}

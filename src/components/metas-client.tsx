@@ -17,7 +17,7 @@ import { brl } from "@/components/design/money-display"
 import { useHideValues } from "@/components/hide-values-provider"
 import { formatDateBR } from "@/lib/format"
 import type { ReserveView } from "@/lib/reserve"
-import type { LoanGroup } from "@/lib/loans"
+import { receivablesTotal, type LoanGroup } from "@/lib/loans"
 import {
   LoanActions,
   LoanOriginalLine,
@@ -71,8 +71,8 @@ export function MetasClient({
   const { hidden } = useHideValues()
   const openLoans = loans.filter((l) => l.remaining > 0 && !l.writtenOff)
   const loanTotal = openLoans.reduce((s, l) => s + l.remaining, 0)
-  const refundTotal = refunds.reduce((s, r) => s + r.amount, 0)
-  const receivable = loanTotal + refundTotal
+  const refundTotal = refunds.reduce((s, r) => s + Math.abs(r.amount), 0)
+  const receivable = receivablesTotal(loans, refunds)
 
   return (
     <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_400px] lg:items-start">

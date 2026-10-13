@@ -3,7 +3,7 @@ import {
   holdingDays,
   irBandLabel,
   pctOfCdi,
-  rendimentoExcludingFlows,
+  periodRendimento,
   roundCents,
   titleNet,
   weightedContractedCdi,
@@ -199,11 +199,18 @@ export function periodCdiKpi(
   const resgates = movements
     .filter((m) => m.type === "resgate" && m.date >= from && m.date <= to)
     .reduce((s, m) => s + Math.abs(m.amount), 0)
-  const rendimento = rendimentoExcludingFlows({
+  const principalApplied = titles
+    .filter((t) => {
+      const d = t.purchaseDate
+      return d && d >= from && d <= to
+    })
+    .reduce((s, t) => s + t.invested, 0)
+  const rendimento = periodRendimento({
     start: startBal,
     end: endBal,
-    aportes,
-    resgates,
+    movementAportes: aportes,
+    movementResgates: resgates,
+    principalApplied,
   })
   const days = (inPeriod.length ? inPeriod : rates.filter((r) => weekdayIso(r.date))).map(
     (r) => r.date

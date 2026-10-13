@@ -52,6 +52,9 @@ export type ClassifiableTxn = {
 /** Outgoing Pix at or above this amount stays A classificar until the user classifies it. */
 export const UNCLASSIFIED_PIX_MIN = 500
 
+/** Query value for the Extrato category filter. */
+export const UNCLASSIFIED_FILTER = "a-classificar"
+
 export type DecorateOpts = {
   yearMonth?: string | null
   from?: string | null
@@ -135,7 +138,7 @@ function spendingCategoryLabel(t: ClassifiableTxn): string | null {
   return t.category_name ?? null
 }
 
-function isOutgoingPix(t: ClassifiableTxn, text: string) {
+export function isOutgoingPix(t: ClassifiableTxn, text = haystack(t)) {
   if ((Number(t.amount) || 0) >= 0) return false
   if (t.source_type === "credit_card") return false
   return /\bpix\b/.test(text) || /transfer\s*-?\s*pix/.test(text)
@@ -370,11 +373,17 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
   })
 }
 
-function dueYearMonth(t: ClassifiableTxn, sameDateGroup: boolean): string | null {
+function dueYearMonth(
+  t: ClassifiableTxn,
+  sameDateGroup: boolean,
+  originDate?: string | null
+): string | null {
   if (!t.date) return null
   const parcela = parseInstallment(t.installment)
   if (!parcela) return t.date.slice(0, 7)
-  if (sameDateGroup) return addMonthsYm(t.date, parcela.current - 1)
+  if (sameDateGroup) {
+    return addMonthsYm(originDate || t.date, parcela.current - 1)
+  }
   return t.date.slice(0, 7)
 }
 
@@ -438,15 +447,26 @@ export function decorateTransactions<T extends ClassifiableTxn>(
     groups.set(key, list)
   }
   const sameDateKeys = new Set<string>()
+  const groupOrigin = new Map<string, string>()
   for (const [key, list] of groups) {
-    const dates = new Set(list.map((r) => r.date?.slice(0, 10)).filter(Boolean))
-    if (dates.size <= 1 && list.length > 1) sameDateKeys.add(key)
+    const dates = list
+      .map((r) => r.date?.slice(0, 10))
+      .filter((d): d is string => Boolean(d))
+      .sort()
+    if (dates.length) groupOrigin.set(key, dates[0])
+    if (
+      list.length > 1 &&
+      dates.length > 0 &&
+      daysApart(dates[0], dates[dates.length - 1]) <= 10
+    ) {
+      sameDateKeys.add(key)
+    }
   }
 
   for (const row of rows) {
     const key = installmentGroupKey(row)
     const sameDate = key ? sameDateKeys.has(key) : false
-    const dueYm = dueYearMonth(row, sameDate)
+    const dueYm = dueYearMonth(row, sameDate, key ? groupOrigin.get(key) : null)
     if (!inView(dueYm, opts)) {
       row.class.hide = true
       row.class.expenseDelta = 0
@@ -549,6 +569,25 @@ export function decorateTransactions<T extends ClassifiableTxn>(
   }
 
   return rows
+}
+
+export function sumSpending<T extends { class: TxnClass }>(rows: T[]): number {
+  return rows.reduce((s, t) => (t.class.hide ? s : s + t.class.expenseDelta), 0)
+}
+
+export function matchesCategoryFilter(
+  t: {
+    class: { categoryLabel?: string | null }
+    user_category_id?: string | null
+    category_id?: string | null
+  },
+  filterId: string
+): boolean {
+  if (!filterId) return true
+  if (filterId === UNCLASSIFIED_FILTER) {
+    return !t.user_category_id && t.class.categoryLabel === "A classificar"
+  }
+  return t.user_category_id === filterId || (!t.user_category_id && t.category_id === filterId)
 }
 
 /** User override wins; unclassified "A classificar" does not count toward a Pluggy category. */

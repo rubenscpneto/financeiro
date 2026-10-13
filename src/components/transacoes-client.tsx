@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { updateTransactionCategoryAction } from "@/lib/actions/crud"
+import { UNCLASSIFIED_FILTER } from "@/lib/txn-class"
 import type { Category, Transaction } from "@/lib/types"
 import { formatDateBR, monthLabelPt, shiftYearMonth } from "@/lib/format"
 import {
@@ -186,6 +187,7 @@ export function TransacoesClient({
               }
             >
               <option value="">Todas</option>
+              <option value={UNCLASSIFIED_FILTER}>A classificar</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

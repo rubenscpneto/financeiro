@@ -8,6 +8,7 @@ import { parseAccountMeta } from "@/lib/account-meta"
 import {
   cardSchedule,
   currentAndNextCycles,
+  cycleTotals,
   futureInstallments,
   itemsForCycle,
 } from "@/lib/card-cycles"
@@ -96,13 +97,10 @@ export default async function FaturaPage({
   const future = selected && current
     ? futureInstallments(txns, selected.id, current.dueYm, closeDay, dueDay)
     : []
-  const aVista = items
-    .filter((i) => !i.installmentTotal)
-    .reduce((s, i) => s + Math.abs(i.amount), 0)
-  const parcelas = items
-    .filter((i) => i.installmentTotal)
-    .reduce((s, i) => s + Math.abs(i.amount), 0)
-  const currentTotal = aVista + parcelas
+  const totals = cycleTotals(items)
+  const aVista = totals.aVista
+  const parcelas = totals.parcelas
+  const itemsNet = totals.net
   const futureTotal = future.reduce(
     (s, g) => s + g.items.reduce((ss, i) => ss + Math.abs(i.amount), 0),
     0
@@ -110,18 +108,26 @@ export default async function FaturaPage({
   const snap = selected
     ? snapRows.find((s) => s.account_id === selected.id)
     : null
-  const openBalance = snap ? crypto.decryptNum("balance", snap.balance) : currentTotal
+  const openBalance = snap
+    ? crypto.decryptNum("balance", snap.balance)
+    : itemsNet
+  const currentTotal = snap ? openBalance : itemsNet
   const limit = selected?.extra?.creditLimit ?? 0
   const available =
     selected?.extra?.availableCreditLimit ??
-    (limit > 0 ? Math.max(0, limit - openBalance - futureTotal) : 0)
-  const used = limit > 0 ? limit - available : openBalance + futureTotal
+    (limit > 0 ? Math.max(0, limit - currentTotal) : 0)
+  const used = limit > 0 ? limit - available : currentTotal
 
-  const lastPaid = txns.find(
-    (t) =>
-      (t.class.kind === "card_bill" || t.class.kind === "card_bill_hidden") &&
-      t.account_id === selected?.id
-  )
+  const lastPaid = [...txns]
+    .filter((t) => {
+      const amt = Math.abs(Number(t.amount) || 0)
+      if (amt <= 0) return false
+      if (t.class.kind === "card_bill_hidden" && t.account_id === selected?.id) {
+        return true
+      }
+      return t.class.kind === "card_bill"
+    })
+    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))[0]
 
   const dueDate = current?.dueDate ?? null
   const daysToDue = dueDate
@@ -152,7 +158,7 @@ export default async function FaturaPage({
       future={future}
       aVista={aVista}
       parcelas={parcelas}
-      currentTotal={openBalance || currentTotal}
+      currentTotal={currentTotal}
       futureTotal={futureTotal}
       limit={limit}
       available={available}

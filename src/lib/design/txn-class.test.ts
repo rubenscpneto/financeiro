@@ -1,9 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  UNCLASSIFIED_FILTER,
   UNCLASSIFIED_PIX_MIN,
   classifyTransaction,
   decorateTransactions,
+  matchesCategoryFilter,
+  sumSpending,
 } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
 import { groupAccountsByBank, accountIdsForBank } from "../banks.ts"
@@ -386,4 +389,51 @@ test("unclassified outgoing Pix at or above the threshold is A classificar even 
   assert.equal(overridden.kind, "loan")
   assert.equal(overridden.isExpense, false)
   assert.equal(overridden.categoryLabel, "Empréstimos")
+})
+
+test("installments a few days apart still count only the current parcela", () => {
+  const rows = decorateTransactions(
+    [
+      {
+        id: "1",
+        date: "2026-10-05",
+        account_id: "card",
+        description: "Magazine Luiza",
+        amount: -300,
+        installment: "1/2",
+        source_type: "credit_card",
+      },
+      {
+        id: "2",
+        date: "2026-10-12",
+        account_id: "card",
+        description: "Magazine Luiza",
+        amount: -300,
+        installment: "2/2",
+        source_type: "credit_card",
+      },
+    ],
+    { yearMonth: "2026-10" }
+  )
+  assert.equal(sumSpending(rows), 300)
+  assert.equal(rows.find((r) => r.id === "2")!.class.hide, true)
+})
+
+test("A classificar is a category filter option", () => {
+  assert.equal(UNCLASSIFIED_FILTER, "a-classificar")
+  const pix = classifyTransaction({
+    description: "Pix",
+    amount: -UNCLASSIFIED_PIX_MIN,
+    source_type: "checking",
+    source_category: "Transfer - PIX",
+  })
+  assert.equal(pix.categoryLabel, "A classificar")
+  assert.equal(
+    matchesCategoryFilter({ class: pix, user_category_id: null, category_id: "x" }, UNCLASSIFIED_FILTER),
+    true
+  )
+  assert.equal(
+    matchesCategoryFilter({ class: pix, user_category_id: "loan", category_id: "x" }, UNCLASSIFIED_FILTER),
+    false
+  )
 })

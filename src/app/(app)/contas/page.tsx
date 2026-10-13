@@ -10,7 +10,7 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount, decPosition } from "@/lib/crypto/rows"
 import { parseAccountMeta } from "@/lib/account-meta"
-import { groupAccountsByBank } from "@/lib/banks"
+import { bankSyncStatus, groupAccountsByBank } from "@/lib/banks"
 import { titledPosition } from "@/lib/investments/net"
 import { roundCents } from "@/lib/money-math"
 import { todayYmd } from "@/lib/format"
@@ -113,12 +113,19 @@ export default async function ContasPage() {
       .sort((a, b) => b.getTime() - a.getTime())[0]
     const hours = latestSnap ? hoursAgo(latestSnap) : itemStatus.updatedAt ? hoursAgo(itemStatus.updatedAt) : null
     const stale = hours != null && hours >= 72
+    const hasPluggy = accs.some((a) => Boolean(a.pluggy_account_id))
+    const sync = bankSyncStatus({
+      hasPluggy,
+      itemOk: itemStatus.ok,
+      stale,
+    })
     return {
       key: b.key,
       name: b.name,
-      ok: itemStatus.ok && !stale,
+      ok: sync === "ok",
       hours,
-      stale,
+      stale: sync === "stale",
+      sync,
       itemCount: b.balanceAccountIds.length,
       checking: checking.map((a) => ({
         name: a.name,
@@ -146,7 +153,7 @@ export default async function ContasPage() {
         return pos && investAccIds.has(pos.account_id)
       }).length,
       total: roundCents(checkingBal + investNet),
-      statusLabel: itemStatus.label,
+      statusLabel: sync === "none" ? "" : itemStatus.label,
     }
   })
 

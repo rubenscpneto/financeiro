@@ -24,6 +24,11 @@ import { buildReserve, recurringMonthlySpend } from "@/lib/reserve"
 import { roundCents, splitReserveNets } from "@/lib/money-math"
 import { decorateTransactions } from "@/lib/txn-class"
 import { groupLoans } from "@/lib/loans"
+import {
+  dedupeTransactions,
+  groupAccountsByBank,
+  primaryAccountIds,
+} from "@/lib/banks"
 import type { Goal } from "@/lib/types"
 
 export default async function MetasPage() {
@@ -110,7 +115,10 @@ export default async function MetasPage() {
         : null,
     }
   })
-  const decorated = decorateTransactions(txns)
+  const banks = groupAccountsByBank(accountsDecoded)
+  const decorated = decorateTransactions(
+    dedupeTransactions(txns, { primaryAccountIds: primaryAccountIds(banks) })
+  )
   const adj = adjRows.map((a) => decAdjustment(crypto, a))
   const loans = groupLoans(decorated, adj)
   const helpAdj = adj.filter((a) => a.kind === "family_help" && !a.undone_at)

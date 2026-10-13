@@ -7,10 +7,12 @@ import {
   iofOnEarnings,
   iofRate,
   irOnEarnings,
+  irBandLabel,
   irRate,
   isCdbLocked,
   pctOfCdi,
   splitReserveNets,
+  periodRendimento,
   rendimentoExcludingFlows,
   reservaLivre,
   reserveMonths,
@@ -113,6 +115,24 @@ describe("holding days and CDI", () => {
     assert.equal(roundCents(rendimento), 89.6)
     const pct = pctOfCdi(89.6, 31050, 0.00284)
     assert.equal(Number((pct * 100).toFixed(1)), 101.6)
+  })
+
+  it("does not treat principal applied in the period as yield", () => {
+    const rendimento = periodRendimento({
+      start: 0,
+      end: 11000,
+      movementAportes: 0,
+      movementResgates: 0,
+      principalApplied: 10000,
+    })
+    assert.equal(rendimento, 1000)
+    const pct = pctOfCdi(1000, 10000, 0.1075)
+    assert.ok(pct < 2)
+  })
+
+  it("IR bracket uses days since application, not maturity", () => {
+    assert.equal(irBandLabel(holdingDays("2026-07-01", "2026-10-13")), "Até 180 dias")
+    assert.equal(irBandLabel(holdingDays("2024-01-01", "2026-10-13")), "Mais de 720 dias")
   })
 
   it("weights contracted % CDI by gross value", () => {

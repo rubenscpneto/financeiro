@@ -90,6 +90,22 @@ export function rendimentoExcludingFlows(input: {
   return input.end - input.start - input.aportes + input.resgates
 }
 
+/** Yield in a window: end − start − principal in − + redemptions. */
+export function periodRendimento(input: {
+  start: number
+  end: number
+  movementAportes: number
+  movementResgates: number
+  principalApplied: number
+}): number {
+  return rendimentoExcludingFlows({
+    start: input.start,
+    end: input.end,
+    aportes: Math.max(input.movementAportes, input.principalApplied),
+    resgates: input.movementResgates,
+  })
+}
+
 /** % do CDI = rendimento ÷ (saldo médio × CDI do período). Returns 1.016 for 101.6%. */
 export function pctOfCdi(
   rendimento: number,

@@ -1,6 +1,11 @@
-import { parseInstallment, addMonthsYm } from "@/lib/txn-class"
-import { closeAndDueDays } from "@/lib/account-meta"
-import type { AccountExtraMeta } from "@/lib/types"
+import {
+  parseInstallment,
+  addMonthsYm,
+  classifyTransaction,
+  type ClassifiableTxn,
+} from "./txn-class.ts"
+import { closeAndDueDays } from "./account-meta.ts"
+import type { AccountExtraMeta } from "./types.ts"
 
 export type CardCycle = {
   dueYm: string
@@ -71,7 +76,25 @@ export type CycleItem = {
   isRefunded: boolean
 }
 
-export function itemsForCycle<T extends {
+export function cycleTotals(items: CycleItem[]): {
+  aVista: number
+  parcelas: number
+  net: number
+} {
+  let aVista = 0
+  let parcelas = 0
+  for (const i of items) {
+    if (i.installmentTotal) parcelas += i.amount
+    else aVista += i.amount
+  }
+  return {
+    aVista: Math.round((-aVista + Number.EPSILON) * 100) / 100,
+    parcelas: Math.round((-parcelas + Number.EPSILON) * 100) / 100,
+    net: Math.round((-(aVista + parcelas) + Number.EPSILON) * 100) / 100,
+  }
+}
+
+export function itemsForCycle<T extends ClassifiableTxn & {
   id: string
   date?: string | null
   description?: string | null
@@ -79,6 +102,7 @@ export function itemsForCycle<T extends {
   installment?: string | null
   category_name?: string | null
   account_id?: string | null
+  class?: { kind?: string }
 }>(
   txns: T[],
   accountId: string,
@@ -91,6 +115,8 @@ export function itemsForCycle<T extends {
     if (t.account_id !== accountId) continue
     const date = t.date?.slice(0, 10)
     if (!date) continue
+    const kind = t.class?.kind ?? classifyTransaction(t).kind
+    if (kind === "card_bill" || kind === "card_bill_hidden") continue
     const parcela = parseInstallment(t.installment)
     const baseCycle = cycleForDate(date, closeDay, dueDay)
     let dueYm = baseCycle.dueYm
