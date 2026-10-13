@@ -3,7 +3,12 @@
 import { useEffect } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { BankGroup } from "@/lib/banks"
-import { BANK_FILTER_STORAGE_KEY, hideBankFilter } from "@/lib/banks"
+import {
+  BANK_FILTER_STORAGE_KEY,
+  bankFromParams,
+  hideBankFilter,
+  resolveSessionBank,
+} from "@/lib/banks"
 import { cn } from "@/lib/utils"
 
 function clearLegacyCookie() {
@@ -66,20 +71,20 @@ export function BankFilter({
 
   useEffect(() => {
     clearLegacyCookie()
-    if (hidden) return
     const urlBank = params.get("bank")
+    const stored = readSessionBank()
+    const next = resolveSessionBank({ urlBank, storedBank: stored })
     if (urlBank) {
-      writeSessionBank(urlBank)
+      writeSessionBank(bankFromParams(urlBank))
       return
     }
-    const stored = readSessionBank()
-    if (stored && banks.some((b) => b.key === stored)) {
+    if (next && banks.some((b) => b.key === next)) {
       const q = new URLSearchParams(params.toString())
-      q.set("bank", stored)
+      q.set("bank", next)
       const qs = q.toString()
       router.replace(qs ? `${pathname}?${qs}` : pathname)
     }
-  }, [hidden, banks, params, pathname, router])
+  }, [banks, params, pathname, router])
 
   if (hidden) return null
 

@@ -6,6 +6,7 @@ import {
   classifyTransaction,
   decorateTransactions,
   displayCategoryLabel,
+  groupRowsByDateDesc,
   isUnclassifiedRow,
   matchesCategoryFilter,
   matchesFlowFilter,
@@ -596,4 +597,21 @@ test("Saídas summary nets refunds and excludes Empréstimos via sumSpending", (
 test("Empréstimos block hides when A classificar filter is on", () => {
   assert.equal(showLoansBlock(""), true)
   assert.equal(showLoansBlock(UNCLASSIFIED_FILTER), false)
+})
+
+test("extrato groups sort by date descending so future parcelas sit on top", () => {
+  const groups = groupRowsByDateDesc([
+    { id: "a", date: "2026-10-02" },
+    { id: "b", date: "2026-10-15" },
+    { id: "c", date: "2026-10-02T00:00:00" },
+    { id: "d", date: "2026-10-13" },
+  ])
+  assert.deepEqual(
+    groups.map(([day]) => day),
+    ["2026-10-15", "2026-10-13", "2026-10-02"]
+  )
+  assert.deepEqual(
+    groups[2][1].map((t) => t.id),
+    ["a", "c"]
+  )
 })

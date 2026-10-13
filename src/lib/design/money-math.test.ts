@@ -201,10 +201,20 @@ describe("reserva livre", () => {
     assert.equal(reservaLivre(split.liquid + 2000, 400), 6900)
   })
 
-  it("IR does not apply to daily-liquidity / come-cotas funds", () => {
+  it("IR applies to CDBs and bank titles, not come-cotas funds", () => {
     assert.equal(irApplies({ name: "CDB prefixado 2031" }), true)
-    assert.equal(irApplies({ name: "CDB Liquidez diária" }), false)
+    assert.equal(irApplies({ name: "CDB Liquidez diária" }), true)
+    assert.equal(irApplies({ name: "CDB liquidez diaria 102% CDI" }), true)
     assert.equal(irApplies({ name: "Fundo DI come-cotas" }), false)
+    assert.equal(irApplies({ name: "Fundo DI" }), false)
+  })
+
+  it("daily-liquidity CDB gain 512.34 at 20% IR is 102.47, net 10.409,87", () => {
+    const n = titleNet(10512.34, 10000, 200)
+    assert.equal(n.earnings, 512.34)
+    assert.equal(n.iof, 0)
+    assert.equal(n.ir, 102.47)
+    assert.equal(n.net, 10409.87)
   })
 
   it("IR bands use holding-period rate on IR, not whole gross, and skip funds", () => {
@@ -212,9 +222,10 @@ describe("reserva livre", () => {
       { name: "CDB 2031", days: 330, ir: 180.31 },
       { name: "CDB curto", days: 90, ir: 10 },
       { name: "CDB Liquidez diária", days: 200, ir: 50 },
+      { name: "Fundo DI come-cotas", days: 200, ir: 99 },
     ])
     assert.equal(bands.find((b) => b.label === "Até 180 dias")?.ir, 10)
-    assert.equal(bands.find((b) => b.label === "181 a 360 dias")?.ir, 180.31)
+    assert.equal(bands.find((b) => b.label === "181 a 360 dias")?.ir, 230.31)
     assert.equal(bands.find((b) => b.label === "361 a 720 dias")?.ir, 0)
   })
 

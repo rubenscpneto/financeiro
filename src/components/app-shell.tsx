@@ -1,10 +1,10 @@
 "use client"
 
-import { Suspense, useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { BankFilter } from "@/components/bank-filter"
-import { hrefWithBank, type BankGroup } from "@/lib/banks"
+import { bankFromParams, hrefWithBank, type BankGroup } from "@/lib/banks"
 import { SP_TZ } from "@/lib/format"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
@@ -145,16 +145,15 @@ export function AppShell({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { hidden, toggle } = useHideValues()
-  const { resolvedTheme, setTheme } = useTheme()
+  const { setTheme } = useTheme()
   const [moreOpen, setMoreOpen] = useState(false)
-  const isClient = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  )
-  const dark = isClient && resolvedTheme === "dark"
   const greet = pathname === "/painel"
-  const bank = searchParams.get("bank")
+  const bank = bankFromParams(searchParams.get("bank"))
+
+  function toggleTheme() {
+    const isDark = document.documentElement.classList.contains("dark")
+    setTheme(isDark ? "light" : "dark")
+  }
 
   useEffect(() => {
     try {
@@ -242,7 +241,7 @@ export function AppShell({
                     <p className="text-[28px] leading-tight font-semibold tracking-tight lg:text-[32px]">
                       Olá, {firstName(userLabel)}
                     </p>
-                    <p className="mt-1 text-sm text-ds-muted">
+                    <p className="mt-1 text-sm text-ds-muted" suppressHydrationWarning>
                       Suas finanças · {todayLabel()}
                     </p>
                   </>
@@ -260,11 +259,12 @@ export function AppShell({
               <EyeButton hidden={hidden} onClick={toggle} />
               <button
                 type="button"
-                onClick={() => setTheme(dark ? "light" : "dark")}
+                onClick={toggleTheme}
                 className="inline-flex size-11 items-center justify-center rounded-full border border-ds-border bg-ds-surface text-ds-ink"
-                aria-label={dark ? "Usar tema claro" : "Usar tema escuro"}
+                aria-label="Alternar tema"
               >
-                <DesignIcon name={dark ? "sun" : "moon"} size={20} />
+                <DesignIcon name="moon" size={20} className="dark:hidden" />
+                <DesignIcon name="sun" size={20} className="hidden dark:block" />
               </button>
             </div>
           </header>
@@ -350,14 +350,13 @@ export function AppShell({
                 />
               </Link>
             ))}
-            <button
-              type="button"
-              onClick={() => setTheme(dark ? "light" : "dark")}
-            >
-              <NavRow
-                icon={dark ? "sun" : "moon"}
-                label={dark ? "Tema claro" : "Tema escuro"}
-              />
+            <button type="button" onClick={toggleTheme}>
+              <span className="dark:hidden">
+                <NavRow icon="moon" label="Tema escuro" />
+              </span>
+              <span className="hidden dark:block">
+                <NavRow icon="sun" label="Tema claro" />
+              </span>
             </button>
             <LogoutButton className="w-full">
               <NavRow icon="logout" label="Sair" />

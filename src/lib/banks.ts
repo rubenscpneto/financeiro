@@ -445,11 +445,8 @@ export function hrefWithBank(
   bank: string | null | undefined
 ): string {
   const [pathAndQuery, hash] = href.split("#")
-  const pathname = (pathAndQuery.split("?")[0] || pathAndQuery)
-  const dropBank = HIDE_BANK_FILTER_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
-  )
-  if (dropBank || !bank) {
+  const pathname = pathAndQuery.split("?")[0] || pathAndQuery
+  if (!bank) {
     return href
   }
   const search = pathAndQuery.includes("?")
@@ -458,6 +455,16 @@ export function hrefWithBank(
   const q = new URLSearchParams(search)
   q.set("bank", bank)
   return `${pathname}?${q.toString()}${hash ? `#${hash}` : ""}`
+}
+
+/** URL wins when present (including explicit Todos); otherwise the session store. */
+export function resolveSessionBank(input: {
+  urlBank: string | null | undefined
+  storedBank: string | null | undefined
+}): string | null {
+  const url = (input.urlBank ?? "").trim()
+  if (url) return bankFromParams(url)
+  return bankFromParams(input.storedBank)
 }
 
 export function primaryAccountIds(groups: BankGroup[]): Set<string> {

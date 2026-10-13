@@ -4,7 +4,8 @@ import {
   createContext,
   useCallback,
   useContext,
-  useSyncExternalStore,
+  useEffect,
+  useState,
   type ReactNode,
 } from "react"
 
@@ -20,15 +21,6 @@ function readHidden() {
     /* ignore */
   }
   return true
-}
-
-function subscribe(onStoreChange: () => void) {
-  window.addEventListener("storage", onStoreChange)
-  window.addEventListener(CHANGE_EVENT, onStoreChange)
-  return () => {
-    window.removeEventListener("storage", onStoreChange)
-    window.removeEventListener(CHANGE_EVENT, onStoreChange)
-  }
 }
 
 function writeHidden(next: boolean) {
@@ -51,7 +43,18 @@ const HideValuesContext = createContext<{
 })
 
 export function HideValuesProvider({ children }: { children: ReactNode }) {
-  const hidden = useSyncExternalStore(subscribe, readHidden, () => true)
+  const [hidden, setHiddenState] = useState(true)
+
+  useEffect(() => {
+    const onChange = () => setHiddenState(readHidden())
+    window.addEventListener("storage", onChange)
+    window.addEventListener(CHANGE_EVENT, onChange)
+    window.dispatchEvent(new Event(CHANGE_EVENT))
+    return () => {
+      window.removeEventListener("storage", onChange)
+      window.removeEventListener(CHANGE_EVENT, onChange)
+    }
+  }, [])
 
   const setHidden = useCallback((next: boolean) => {
     writeHidden(next)

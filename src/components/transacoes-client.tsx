@@ -7,6 +7,7 @@ import { updateTransactionCategoryAction } from "@/lib/actions/crud"
 import {
   UNCLASSIFIED_FILTER,
   displayCategoryLabel,
+  groupRowsByDateDesc,
   matchesFlowFilter,
   showLoansBlock,
   summarizeFlow,
@@ -188,16 +189,10 @@ export function TransacoesClient({
     return { ...summary, ...sums }
   }, [filtered, flow, summary, transactions])
 
-  const groups = useMemo(() => {
-    const map = new Map<string, Row[]>()
-    for (const t of filtered) {
-      const day = t.date.slice(0, 10)
-      const list = map.get(day) ?? []
-      list.push(t)
-      map.set(day, list)
-    }
-    return [...map.entries()]
-  }, [filtered])
+  const groups = useMemo(
+    () => groupRowsByDateDesc(filtered),
+    [filtered]
+  )
 
   const periodLabel = yearMonth
     ? monthLabelPt(yearMonth)

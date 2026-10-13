@@ -192,9 +192,11 @@ export function irApplies(p: { name?: string | null }): boolean {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+  // Bank titles (CDB, LCI, …) use the regressive holding-period table,
+  // including daily-liquidity CDBs. Come-cotas applies to funds only.
+  if (/\b(cdb|rdb|lci|lca|tesouro|debentu)/.test(name)) return true
   if (/come.?cotas/.test(name)) return false
-  if (/liquidez\s+diaria/.test(name)) return false
-  if (/\bfundos?\b/.test(name)) return false
+  if (/\bfundos?\b/.test(name) || /\bfic\b/.test(name)) return false
   return true
 }
 

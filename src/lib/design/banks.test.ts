@@ -13,6 +13,7 @@ import {
   hrefWithBank,
   pickBalanceAccountIds,
   resolveBank,
+  resolveSessionBank,
 } from "../banks.ts"
 import { decorateTransactions } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
@@ -193,14 +194,32 @@ test("bank chips hide on Orçamentos and Metas and when only one bank", () => {
   assert.equal(hideBankFilter("/painel", 1), true)
 })
 
-test("nav href keeps the bank query", () => {
+test("nav href keeps the bank query on every route, including Orçamentos and Metas", () => {
   assert.equal(hrefWithBank("/transacoes", "nubank"), "/transacoes?bank=nubank")
   assert.equal(
     hrefWithBank("/transacoes?mes=2026-10", "itaú"),
     "/transacoes?mes=2026-10&bank=ita%C3%BA"
   )
   assert.equal(hrefWithBank("/painel", null), "/painel")
-  assert.equal(hrefWithBank("/metas", "nubank"), "/metas")
+  assert.equal(hrefWithBank("/metas", "nubank"), "/metas?bank=nubank")
+  assert.equal(hrefWithBank("/orcamentos", "c6"), "/orcamentos?bank=c6")
+})
+
+test("session bank survives pages that hide chips and resets only when empty", () => {
+  assert.equal(resolveSessionBank({ urlBank: "c6", storedBank: null }), "c6")
+  assert.equal(
+    resolveSessionBank({ urlBank: null, storedBank: "nubank" }),
+    "nubank"
+  )
+  assert.equal(
+    resolveSessionBank({ urlBank: "", storedBank: "nubank" }),
+    "nubank"
+  )
+  assert.equal(resolveSessionBank({ urlBank: null, storedBank: null }), null)
+  assert.equal(
+    resolveSessionBank({ urlBank: "todos", storedBank: "c6" }),
+    null
+  )
 })
 
 test("headline suffix is ' no C6'", () => {

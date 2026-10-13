@@ -702,6 +702,20 @@ export function showLoansBlock(categoryFilter: string): boolean {
   return categoryFilter !== UNCLASSIFIED_FILTER
 }
 
+export function groupRowsByDateDesc<T extends { date?: string | null }>(
+  rows: T[]
+): [string, T[]][] {
+  const map = new Map<string, T[]>()
+  for (const t of rows) {
+    const day = (t.date ?? "").slice(0, 10)
+    if (!day) continue
+    const list = map.get(day) ?? []
+    list.push(t)
+    map.set(day, list)
+  }
+  return [...map.entries()].sort(([a], [b]) => b.localeCompare(a))
+}
+
 export function countsAsIncome(t: ClassifiableTxn) {
   return classifyTransaction(t).isIncome
 }
