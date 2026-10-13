@@ -1,5 +1,4 @@
 import { after, NextResponse } from "next/server"
-import { runPluggySync } from "@/lib/pluggy/sync"
 import { getItemId } from "@/lib/pluggy/client"
 
 export const runtime = "nodejs"
@@ -73,6 +72,7 @@ export async function POST(req: Request) {
 
   after(async () => {
     try {
+      const { runPluggySync } = await import("@/lib/pluggy/sync")
       const result = await runPluggySync(userId)
       if (result.error) {
         console.error("[pluggy webhook] sync failed", result.error)

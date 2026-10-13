@@ -13,6 +13,7 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@better-auth/drizzle-adapter": "^1.7.7",
+    "@napi-rs/canvas": "0.1.80",
     "@zip.js/zip.js": "^2.8.26",
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.7.7",
@@ -47,5 +48,11 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas-linux-arm64-gnu": "0.1.80",
+    "@napi-rs/canvas-linux-arm64-musl": "0.1.80",
+    "@napi-rs/canvas-linux-x64-gnu": "0.1.80",
+    "@napi-rs/canvas-linux-x64-musl": "0.1.80"
   }
 }

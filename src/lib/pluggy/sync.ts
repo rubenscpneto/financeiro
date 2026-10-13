@@ -13,10 +13,9 @@ import {
 import {
   applyCategoryRules,
   resolveCategoriesFromSource,
-  type AccountSourceType,
-  type ParsedTransaction,
-} from "@/lib/parsers"
+} from "@/lib/parsers/apply-rules"
 import { makeHash } from "@/lib/parsers/normalize"
+import type { AccountSourceType, ParsedTransaction } from "@/lib/parsers/types"
 import type { AccountType } from "@/lib/types"
 import {
   assertItemReady,

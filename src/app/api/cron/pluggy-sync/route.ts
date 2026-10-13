@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { runPluggySync } from "@/lib/pluggy/sync"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -27,6 +26,7 @@ export async function GET(req: Request) {
   }
 
   try {
+    const { runPluggySync } = await import("@/lib/pluggy/sync")
     const result = await runPluggySync(userId)
     if (result.error) {
       return NextResponse.json(result, { status: 500 })
