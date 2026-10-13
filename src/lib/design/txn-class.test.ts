@@ -599,6 +599,28 @@ test("Empréstimos block hides when A classificar filter is on", () => {
   assert.equal(showLoansBlock(UNCLASSIFIED_FILTER), false)
 })
 
+test("22:00 BRT on the last day of the month stays in that month's spending (UTC server)", () => {
+  const rows = decorateTransactions(
+    [
+      {
+        id: "late",
+        date: "2026-11-01T01:00:00.000Z",
+        description: "Padaria",
+        amount: -50,
+        source_type: "checking",
+      },
+    ],
+    { yearMonth: "2026-10" }
+  )
+  assert.equal(sumSpending(rows), 50)
+
+  const groups = groupRowsByDateDesc(rows)
+  assert.deepEqual(
+    groups.map(([day]) => day),
+    ["2026-10-31"]
+  )
+})
+
 test("extrato groups sort by date descending so future parcelas sit on top", () => {
   const groups = groupRowsByDateDesc([
     { id: "a", date: "2026-10-02" },

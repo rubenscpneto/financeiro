@@ -49,6 +49,17 @@ export function todayYmd(date = new Date()) {
   }).format(date)
 }
 
+/** Civil date in America/Sao_Paulo. Date-only `YYYY-MM-DD` is already the calendar day. */
+export function calendarYmd(iso: string): string {
+  const raw = (iso ?? "").trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && /(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
+    const d = new Date(raw)
+    if (Number.isFinite(d.getTime())) return todayYmd(d)
+  }
+  return raw.slice(0, 10)
+}
+
 export function formatTodayLabel(date = new Date()) {
   const ymd = todayYmd(date)
   const [y, m, d] = ymd.split("-").map(Number)

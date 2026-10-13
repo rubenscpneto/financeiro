@@ -1,3 +1,5 @@
+import { calendarYmd } from "./format.ts"
+
 export type TxnClassKind =
   | "income"
   | "expense"
@@ -385,8 +387,9 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
 function dueYearMonth(t: ClassifiableTxn, originDate?: string | null): string | null {
   if (!t.date) return null
   const parcela = parseInstallment(t.installment)
-  if (!parcela) return t.date.slice(0, 7)
-  return addMonthsYm(originDate || t.date, parcela.current - 1)
+  const day = calendarYmd(t.date)
+  if (!parcela) return day.slice(0, 7)
+  return addMonthsYm(originDate || day, parcela.current - 1)
 }
 
 function inView(dueYm: string | null, opts: DecorateOpts): boolean {
@@ -707,7 +710,7 @@ export function groupRowsByDateDesc<T extends { date?: string | null }>(
 ): [string, T[]][] {
   const map = new Map<string, T[]>()
   for (const t of rows) {
-    const day = (t.date ?? "").slice(0, 10)
+    const day = t.date ? calendarYmd(t.date) : ""
     if (!day) continue
     const list = map.get(day) ?? []
     list.push(t)

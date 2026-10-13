@@ -6,7 +6,7 @@ import {
   installmentGroupKey,
   type ClassifiableTxn,
 } from "./txn-class.ts"
-import { monthLabelPt } from "./format.ts"
+import { calendarYmd, monthLabelPt } from "./format.ts"
 import { closeAndDueDays } from "./account-meta.ts"
 import type { AccountExtraMeta } from "./types.ts"
 
@@ -19,6 +19,10 @@ export type CardCycle = {
 
 function pad(n: number) {
   return String(n).padStart(2, "0")
+}
+
+function txnYmd(date?: string | null) {
+  return date ? calendarYmd(date) : ""
 }
 
 function ymd(y: number, m: number, d: number) {
@@ -36,7 +40,7 @@ export function cycleForDate(
   closeDay: number,
   dueDay: number
 ): CardCycle {
-  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number)
+  const [y, m, d] = calendarYmd(isoDate).split("-").map(Number)
   let close = { y, m }
   if (d > closeDay) close = shiftMonth(y, m, 1)
   let due = { y: close.y, m: close.m }
@@ -169,7 +173,7 @@ export function itemsForCycle<T extends ClassifiableTxn & {
   const groups = new Map<string, T[]>()
   for (const t of txns) {
     if (t.account_id !== accountId) continue
-    const date = t.date?.slice(0, 10)
+    const date = txnYmd(t.date)
     if (!date) continue
     const kind = t.class?.kind ?? classifyTransaction(t).kind
     if (kind === "card_bill" || kind === "card_bill_hidden") continue
@@ -201,7 +205,7 @@ export function itemsForCycle<T extends ClassifiableTxn & {
   }
   for (const list of groups.values()) {
     const dates = list
-      .map((r) => r.date?.slice(0, 10))
+      .map((r) => txnYmd(r.date))
       .filter((d): d is string => Boolean(d))
       .sort()
     const origin = dates[0]
@@ -254,7 +258,7 @@ export function futureInstallments<T extends {
     if (t.account_id !== accountId) continue
     const parcela = parseInstallment(t.installment)
     if (!parcela) continue
-    const date = t.date?.slice(0, 10)
+    const date = txnYmd(t.date)
     if (!date) continue
     const key = installmentGroupKey(t)
     if (!key) continue
@@ -264,7 +268,7 @@ export function futureInstallments<T extends {
   }
   for (const list of groups.values()) {
     const dates = list
-      .map((r) => r.date?.slice(0, 10))
+      .map((r) => txnYmd(r.date))
       .filter((d): d is string => Boolean(d))
       .sort()
     const origin = dates[0]

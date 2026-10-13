@@ -18,6 +18,7 @@ import {
 import { decorateTransactions } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
 import {
+  calendarYmd,
   currentYearMonth,
   extratoDayHeading,
   formatTodayLabel,
@@ -185,6 +186,12 @@ test("today label and extrato day headings are calendar-stable in America/Sao_Pa
 
 test("currentYearMonth uses America/Sao_Paulo like todayYmd", () => {
   assert.equal(currentYearMonth(), todayYmd().slice(0, 7))
+})
+
+test("22:00 BRT last day of month is still that civil day under a UTC server", () => {
+  assert.equal(calendarYmd("2026-11-01T01:00:00.000Z"), "2026-10-31")
+  assert.equal(calendarYmd("2026-10-31T22:00:00.000-03:00"), "2026-10-31")
+  assert.equal(calendarYmd("2026-10-31"), "2026-10-31")
 })
 
 test("month labels format calendar dates in America/Sao_Paulo", () => {

@@ -1,3 +1,4 @@
+import { calendarYmd } from "@/lib/format"
 import { makeHash } from "@/lib/parsers/normalize"
 import type {
   AccountSourceType,
@@ -82,7 +83,7 @@ export function mapTransaction(
   }
 
   return {
-    date: txn.date.slice(0, 10),
+    date: pluggyDateToYmd(txn.date),
     description: txn.description,
     amount,
     merchant: txn.merchant?.name ?? undefined,
@@ -188,12 +189,7 @@ function mapMovementType(
 
 /** Calendar date in America/Sao_Paulo (Pluggy often sends midnight BRT as …T03:00:00.000Z). */
 export function pluggyDateToYmd(iso: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso))
+  return calendarYmd(iso)
 }
 
 export function mapInvestmentTransaction(

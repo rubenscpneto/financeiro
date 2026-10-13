@@ -137,6 +137,31 @@ test("orange due banner follows the selected cycle due date", () => {
   assert.equal(faturaDueBanner({ dueDate: null, asOf: "2026-10-13" }).kind, "none")
 })
 
+test("22:00 BRT on the last day of the month stays in that month's fatura cycle (UTC server)", () => {
+  // 31 Oct 2026 22:00 BRT = 1 Nov 2026 01:00 UTC. Close on day 31 so
+  // Oct 31 and Nov 1 land in different cycles.
+  const fromYmd = cycleForDate("2026-10-31", 31, 10)
+  const fromUtc = cycleForDate("2026-11-01T01:00:00.000Z", 31, 10)
+  const fromBrt = cycleForDate("2026-10-31T22:00:00.000-03:00", 31, 10)
+  assert.equal(fromUtc.dueYm, fromYmd.dueYm)
+  assert.equal(fromBrt.dueYm, fromYmd.dueYm)
+  assert.equal(fromUtc.closeDate.slice(0, 7), "2026-10")
+
+  const txns = decorateTransactions([
+    {
+      id: "late",
+      date: "2026-11-01T01:00:00.000Z",
+      account_id: "card",
+      description: "Padaria",
+      amount: -50,
+      source_type: "credit_card",
+    },
+  ])
+  const items = itemsForCycle(txns, "card", fromYmd, 31, 10)
+  assert.equal(items.length, 1)
+  assert.equal(cycleTotals(items).net, 50)
+})
+
 test("future installments are sorted by date", () => {
   const txns = decorateTransactions([
     {
