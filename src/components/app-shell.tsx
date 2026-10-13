@@ -4,7 +4,6 @@ import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
-import { logoutAction } from "@/lib/actions/auth"
 import { cn } from "@/lib/utils"
 import { DesignIcon, type DesignIconName } from "@/components/design/icons"
 import {
@@ -13,6 +12,7 @@ import {
   IconBadge,
 } from "@/components/design/primitives"
 import { useHideValues } from "@/components/hide-values-provider"
+import { LogoutButton } from "@/components/logout-button"
 import {
   Sheet,
   SheetContent,
@@ -39,7 +39,22 @@ const DESKTOP_NAV: { href: string; icon: DesignIconName; label: string }[] = [
 const MORE_NAV: { href: string; icon: DesignIconName; label: string }[] = [
   { href: "/categorias", icon: "tag", label: "Categorias" },
   { href: "/metas", icon: "wallet", label: "Metas" },
+  { href: "/configuracoes", icon: "sliders", label: "Configurações" },
 ]
+
+const PAGE_TITLES: { prefix: string; title: string }[] = [
+  { prefix: "/transacoes", title: "Extrato" },
+  { prefix: "/investimentos", title: "Investimentos" },
+  { prefix: "/orcamentos", title: "Planejar gastos" },
+  { prefix: "/categorias", title: "Categorias" },
+  { prefix: "/metas", title: "Metas" },
+  { prefix: "/configuracoes", title: "Configurações" },
+]
+
+function pageTitle(pathname: string) {
+  return PAGE_TITLES.find((p) => pathname === p.prefix || pathname.startsWith(`${p.prefix}/`))
+    ?.title ?? "Financeiro"
+}
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
@@ -116,63 +131,60 @@ export function AppShell({
   return (
     <div className="min-h-full bg-ds-bg font-sans text-base text-ds-ink antialiased">
       <div className="flex min-h-dvh">
-        <aside className="hidden w-[264px] shrink-0 flex-col justify-between border-r border-ds-border bg-ds-surface px-4 py-6 lg:flex">
-          <div className="flex flex-col gap-1">
-            <Link href="/painel" className="mb-5 flex items-center gap-2.5 px-2">
-              <IconBadge
-                name="wallet"
-                tone="hero"
-                size={36}
-                iconSize={20}
-                radius="lg"
-              />
-              <span className="text-[19px] font-semibold text-ds-ink">
-                Financeiro
-              </span>
-            </Link>
-            {DESKTOP_NAV.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <NavRow
-                  icon={item.icon}
-                  label={item.label}
-                  active={isActive(pathname, item.href)}
+        <aside className="sticky top-0 hidden h-dvh w-[264px] shrink-0 flex-col border-r border-ds-border bg-ds-surface px-4 py-6 lg:flex">
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-4">
+            <div className="flex min-h-0 flex-col gap-1 overflow-y-auto">
+              <Link href="/painel" className="mb-5 flex items-center gap-2.5 px-2">
+                <IconBadge
+                  name="wallet"
+                  tone="hero"
+                  size={36}
+                  iconSize={20}
+                  radius="lg"
                 />
+                <span className="text-[19px] font-semibold text-ds-ink">
+                  Financeiro
+                </span>
               </Link>
-            ))}
-            <p className="px-3 pb-1.5 pt-5 text-sm font-semibold tracking-[0.06em] text-ds-subtle">
-              MAIS
-            </p>
-            {MORE_NAV.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <NavRow
-                  icon={item.icon}
-                  label={item.label}
-                  active={isActive(pathname, item.href)}
-                />
-              </Link>
-            ))}
-          </div>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 px-1.5">
-              <Avatar initials={initialsFrom(userLabel)} size={40} />
-              <div className="min-w-0">
-                <p className="truncate text-[15px] font-semibold text-ds-ink">
-                  {userLabel}
-                </p>
-                <form action={logoutAction}>
-                  <button
-                    type="submit"
-                    className="text-sm font-medium text-ds-accent"
-                  >
+              {DESKTOP_NAV.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <NavRow
+                    icon={item.icon}
+                    label={item.label}
+                    active={isActive(pathname, item.href)}
+                  />
+                </Link>
+              ))}
+              <p className="px-3 pb-1.5 pt-5 text-sm font-semibold tracking-[0.06em] text-ds-subtle">
+                MAIS
+              </p>
+              {MORE_NAV.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <NavRow
+                    icon={item.icon}
+                    label={item.label}
+                    active={isActive(pathname, item.href)}
+                  />
+                </Link>
+              ))}
+            </div>
+            <div className="flex shrink-0 flex-col gap-3">
+              <div className="flex items-center gap-3 px-1.5">
+                <Avatar initials={initialsFrom(userLabel)} size={40} />
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-semibold text-ds-ink">
+                    {userLabel}
+                  </p>
+                  <LogoutButton className="text-sm font-medium text-ds-accent">
                     Sair
-                  </button>
-                </form>
+                  </LogoutButton>
+                </div>
               </div>
             </div>
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
           <header className="flex items-start justify-between gap-3 px-5 pt-5 pb-2 lg:px-8">
             <div className="min-w-0">
               {greet ? (
@@ -185,7 +197,9 @@ export function AppShell({
                   </p>
                 </>
               ) : (
-                <p className="text-sm font-medium text-ds-muted">Financeiro</p>
+                <p className="text-2xl font-semibold tracking-tight text-ds-ink">
+                  {pageTitle(pathname)}
+                </p>
               )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -201,7 +215,7 @@ export function AppShell({
             </div>
           </header>
 
-          <main className="flex flex-1 flex-col gap-5 px-5 pt-2 pb-28 lg:px-8 lg:pb-8">
+          <main className="flex min-w-0 flex-1 flex-col gap-5 overflow-x-hidden px-5 pt-2 pb-28 lg:px-8 lg:pb-8">
             {children}
           </main>
 
@@ -286,11 +300,9 @@ export function AppShell({
                 label={dark ? "Tema claro" : "Tema escuro"}
               />
             </button>
-            <form action={logoutAction}>
-              <button type="submit" className="w-full">
-                <NavRow icon="logout" label="Sair" />
-              </button>
-            </form>
+            <LogoutButton className="w-full">
+              <NavRow icon="logout" label="Sair" />
+            </LogoutButton>
           </div>
         </SheetContent>
       </Sheet>

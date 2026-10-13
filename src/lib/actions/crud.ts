@@ -8,6 +8,7 @@ import {
   categories,
   categoryRules,
   goals,
+  profiles,
   transactions,
 } from "@/db/schema"
 import { requireUser } from "@/lib/auth-session"
@@ -245,5 +246,38 @@ export async function deleteGoalAction(formData: FormData): Promise<ActionResult
   const id = String(formData.get("id") ?? "")
   await db.delete(goals).where(and(eq(goals.id, id), eq(goals.user_id, userId)))
   revalidatePath("/metas")
+  return { ok: true }
+}
+
+export async function updateProfileNameAction(
+  formData: FormData
+): Promise<ActionResult> {
+  const { userId } = await requireUser()
+  const crypto = await getOrCreateUserCrypto(userId)
+  const nome = String(formData.get("nome") ?? "").trim()
+  if (!nome) return { error: "Informe o nome." }
+
+  try {
+    await db
+      .insert(profiles)
+      .values({
+        id: userId,
+        nome: crypto.encrypt("nome", nome),
+        updated_at: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          nome: crypto.encrypt("nome", nome),
+          updated_at: new Date(),
+        },
+      })
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Falha ao salvar o nome.",
+    }
+  }
+  revalidatePath("/configuracoes")
+  revalidatePath("/painel")
   return { ok: true }
 }

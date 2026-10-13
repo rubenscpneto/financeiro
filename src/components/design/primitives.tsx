@@ -6,16 +6,20 @@ export function PageTitle({
   title,
   subtitle,
 }: {
-  title: string
+  title?: string
   subtitle?: string
 }) {
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-ds-ink">
-        {title}
-      </h1>
+      {title ? (
+        <h1 className="text-2xl font-semibold tracking-tight text-ds-ink">
+          {title}
+        </h1>
+      ) : null}
       {subtitle ? (
-        <p className="mt-1 text-sm text-ds-muted">{subtitle}</p>
+        <p className={title ? "mt-1 text-sm text-ds-muted" : "text-sm text-ds-muted"}>
+          {subtitle}
+        </p>
       ) : null}
     </div>
   )

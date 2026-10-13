@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { and, desc, eq, gte, lte } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm"
 import { db } from "@/db"
 import { accounts, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
@@ -7,7 +7,12 @@ import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount, decTransaction } from "@/lib/crypto/rows"
 import { TransacoesClient } from "@/components/transacoes-client"
 import { currentYearMonth, monthBounds } from "@/lib/format"
-import type { Account, Category, Transaction } from "@/lib/types"
+import { accountIdsForBank, groupAccountsByBank } from "@/lib/banks"
+import { classifyTransaction } from "@/lib/txn-class"
+import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
+import type { Category, Transaction } from "@/lib/types"
+
+const EMPTY_UUID = "00000000-0000-0000-0000-000000000000"
 
 export default async function TransacoesPage({
   searchParams,
@@ -31,25 +36,7 @@ export default async function TransacoesPage({
     to = bounds.end
   }
 
-  const filters = [eq(transactions.user_id, userId)]
-  if (params.account_id) filters.push(eq(transactions.account_id, params.account_id))
-  if (params.category_id) filters.push(eq(transactions.category_id, params.category_id))
-  if (from) filters.push(gte(transactions.date, from))
-  if (to) filters.push(lte(transactions.date, to))
-
-  const [txnRows, accountRows, categoryRows] = await Promise.all([
-    db
-      .select({
-        txn: transactions,
-        account_name: accounts.name,
-        category_name: categories.name,
-      })
-      .from(transactions)
-      .leftJoin(accounts, eq(transactions.account_id, accounts.id))
-      .leftJoin(categories, eq(transactions.category_id, categories.id))
-      .where(and(...filters))
-      .orderBy(desc(transactions.date), desc(transactions.id))
-      .limit(1000),
+  const [accountRows, categoryRows] = await Promise.all([
     db
       .select()
       .from(accounts)
@@ -61,33 +48,81 @@ export default async function TransacoesPage({
       .orderBy(categories.name, categories.id),
   ])
 
-  const mapped = txnRows.map((row) => {
-    const txn = decTransaction(crypto, row.txn)
-    const accountName = row.account_name
-      ? crypto.decryptFlex("name", row.account_name)
-      : null
-    return {
-      ...txn,
-      accounts: accountName ? { name: accountName } : null,
-      categories: row.category_name ? { name: row.category_name } : null,
-    }
-  })
   const decodedAccounts = accountRows
     .map((a) => decAccount(crypto, a))
     .sort(
       (a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
     )
+  const banks = groupAccountsByBank(decodedAccounts)
+  const bankIds = accountIdsForBank(banks, params.bank)
+  const scopedIds =
+    bankIds == null ? null : bankIds.length > 0 ? bankIds : [EMPTY_UUID]
+
+  const filters = [eq(transactions.user_id, userId)]
+  if (scopedIds) filters.push(inArray(transactions.account_id, scopedIds))
+  if (params.category_id) filters.push(eq(transactions.category_id, params.category_id))
+  if (from) filters.push(gte(transactions.date, from))
+  if (to) filters.push(lte(transactions.date, to))
+
+  const txnRows = await db
+    .select({
+      txn: transactions,
+      account_name: accounts.name,
+      category_name: categories.name,
+    })
+    .from(transactions)
+    .leftJoin(accounts, eq(transactions.account_id, accounts.id))
+    .leftJoin(categories, eq(transactions.category_id, categories.id))
+    .where(and(...filters))
+    .orderBy(desc(transactions.date), desc(transactions.id))
+    .limit(1000)
+
+  const mapped = txnRows
+    .map((row) => {
+      const txn = decTransaction(crypto, row.txn)
+      const accountName = row.account_name
+        ? crypto.decryptFlex("name", row.account_name)
+        : null
+      const cls = classifyTransaction({
+        amount: txn.amount,
+        description: txn.description,
+        source_type: txn.source_type,
+        source_category: txn.source_category,
+        category_name: row.category_name,
+        is_transfer: txn.is_transfer,
+      })
+      return {
+        ...txn,
+        accounts: accountName ? { name: accountName } : null,
+        categories: row.category_name
+          ? { name: categoryLabelPt(cls.categoryLabel ?? row.category_name) }
+          : cls.categoryLabel
+            ? { name: cls.categoryLabel }
+            : null,
+        _hide: cls.hide,
+        _displayLabel: cls.displayLabel,
+        _kind: cls.kind,
+      }
+    })
+    .filter((t) => !t._hide)
+
+  const displayCategories = (categoryRows as Category[]).map((c) => ({
+    ...c,
+    name: categoryLabelPt(c.name),
+  }))
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <Suspense>
         <TransacoesClient
           transactions={mapped as (Transaction & {
             accounts?: { name: string } | null
             categories?: { name: string } | null
+            _displayLabel?: string | null
+            _kind?: string
           })[]}
-          accounts={decodedAccounts as Account[]}
-          categories={categoryRows as Category[]}
+          banks={banks.map((b) => ({ key: b.key, name: b.name }))}
+          categories={displayCategories}
           yearMonth={yearMonth}
           from={from ?? ""}
           to={to ?? ""}

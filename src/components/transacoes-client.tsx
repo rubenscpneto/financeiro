@@ -4,7 +4,7 @@ import { useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { updateTransactionCategoryAction } from "@/lib/actions/crud"
-import type { Account, Category, Transaction } from "@/lib/types"
+import type { Category, Transaction } from "@/lib/types"
 import { formatDateBR, shiftYearMonth } from "@/lib/format"
 import {
   DsCard,
@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input"
 type Row = Transaction & {
   accounts?: { name: string } | null
   categories?: { name: string } | null
+  _displayLabel?: string | null
+  _kind?: string
 }
 
 function pushQuery(
@@ -33,20 +35,23 @@ function pushQuery(
     if (v == null || v === "") q.delete(k)
     else q.set(k, v)
   }
+  q.delete("account_id")
   const qs = q.toString()
   router.push(qs ? `/transacoes?${qs}` : "/transacoes")
 }
 
+const control = `${dsControlClass} w-full min-w-0 max-w-full`
+
 export function TransacoesClient({
   transactions,
-  accounts,
+  banks,
   categories,
   yearMonth,
   from,
   to,
 }: {
   transactions: Row[]
-  accounts: Account[]
+  banks: { key: string; name: string }[]
   categories: Category[]
   yearMonth: string | null
   from: string
@@ -56,18 +61,15 @@ export function TransacoesClient({
   const router = useRouter()
   const params = useSearchParams()
 
-  const accountId = params.get("account_id") ?? ""
+  const bankKey = params.get("bank") ?? ""
   const categoryId = params.get("category_id") ?? ""
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageTitle
-        title="Extrato"
-        subtitle="Filtre por conta, categoria, mês ou intervalo."
-      />
+    <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
+      <PageTitle subtitle="Filtre por banco, categoria, mês ou intervalo." />
 
-      <DsCard>
-        <div className="flex flex-wrap items-center gap-2">
+      <DsCard className="min-w-0 overflow-x-hidden">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -86,7 +88,7 @@ export function TransacoesClient({
           </Button>
           <Input
             type="month"
-            className="w-auto"
+            className="min-w-0 max-w-full flex-[1_1_10rem]"
             value={yearMonth ?? ""}
             onChange={(e) => {
               const mes = e.target.value
@@ -133,16 +135,16 @@ export function TransacoesClient({
         </div>
 
         <form
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
+          className="flex w-full min-w-0 flex-wrap items-end gap-3"
           onSubmit={(e) => {
             e.preventDefault()
             const fd = new FormData(e.currentTarget)
-            const account = String(fd.get("account_id") ?? "")
+            const bank = String(fd.get("bank") ?? "")
             const category = String(fd.get("category_id") ?? "")
             const rangeFrom = String(fd.get("from") ?? "")
             const rangeTo = String(fd.get("to") ?? "")
             const q = new URLSearchParams()
-            if (account) q.set("account_id", account)
+            if (bank) q.set("bank", bank)
             if (category) q.set("category_id", category)
             if (rangeFrom || rangeTo) {
               if (rangeFrom) q.set("from", rangeFrom)
@@ -153,28 +155,23 @@ export function TransacoesClient({
             router.push(`/transacoes?${q.toString()}`)
           }}
         >
-          <label className="flex flex-col gap-1 text-sm text-ds-muted">
-            Conta
-            <select
-              name="account_id"
-              defaultValue={accountId}
-              className={dsControlClass}
-            >
-              <option value="">Todas</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                  {a.institution ? ` (${a.institution})` : ""}
+          <label className="flex min-w-0 flex-[1_1_10rem] flex-col gap-1 text-sm text-ds-muted">
+            Banco
+            <select name="bank" defaultValue={bankKey} className={control}>
+              <option value="">Todos</option>
+              {banks.map((b) => (
+                <option key={b.key} value={b.key}>
+                  {b.name}
                 </option>
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-sm text-ds-muted">
+          <label className="flex min-w-0 flex-[1_1_10rem] flex-col gap-1 text-sm text-ds-muted">
             Categoria
             <select
               name="category_id"
               defaultValue={categoryId}
-              className={dsControlClass}
+              className={control}
             >
               <option value="">Todas</option>
               {categories.map((c) => (
@@ -184,54 +181,72 @@ export function TransacoesClient({
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-sm text-ds-muted">
+          <label className="flex min-w-0 flex-[1_1_10rem] flex-col gap-1 text-sm text-ds-muted">
             De
             <Input
               type="date"
               name="from"
+              className="min-w-0 max-w-full"
               defaultValue={yearMonth ? "" : from}
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-ds-muted">
+          <label className="flex min-w-0 flex-[1_1_10rem] flex-col gap-1 text-sm text-ds-muted">
             Até
             <Input
               type="date"
               name="to"
+              className="min-w-0 max-w-full"
               defaultValue={yearMonth ? "" : to}
             />
           </label>
-          <Button type="submit">Filtrar</Button>
+          <Button type="submit" className="flex-[1_1_8rem]">
+            Filtrar
+          </Button>
         </form>
       </DsCard>
 
-      <DsCard className="gap-0 p-2 sm:p-[18px]">
+      <DsCard className="min-w-0 gap-0 overflow-x-hidden p-2 sm:p-[18px]">
         {transactions.map((t) => {
           const amount = Number(t.amount)
+          const title = t._displayLabel || t.description
+          const isTransfer =
+            t._kind === "transfer" ||
+            t._kind === "investment_transfer" ||
+            t._kind === "card_bill" ||
+            t.is_transfer
           return (
             <div
               key={t.id}
-              className="flex items-start gap-3.5 border-b border-ds-border py-3 last:border-0"
+              className="flex min-w-0 items-start gap-3.5 border-b border-ds-border py-3 last:border-0"
             >
               <IconBadge
                 name={amount > 0 ? "income" : "cart"}
-                tone={t.is_transfer ? "info" : amount > 0 ? "pos" : "neutral"}
+                tone={isTransfer ? "info" : amount > 0 ? "pos" : "neutral"}
               />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 overflow-hidden">
                 <p className="truncate text-base font-medium text-ds-ink">
-                  {t.description}
+                  {title}
                 </p>
                 <p className="truncate text-sm text-ds-muted">
                   {t.accounts?.name ?? "Conta"} · {formatDateBR(t.date)}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
                   {t.installment ? <Flag>{t.installment}</Flag> : null}
-                  {t.is_transfer ? (
+                  {t._kind === "card_bill" ? (
+                    <span className="text-sm font-medium text-ds-info">
+                      Fatura paga
+                    </span>
+                  ) : t._kind === "loan" ? (
+                    <span className="text-sm font-medium text-ds-info">
+                      Empréstimos
+                    </span>
+                  ) : isTransfer ? (
                     <span className="text-sm font-medium text-ds-info">
                       Transferência
                     </span>
                   ) : null}
                   <select
-                    className={`${dsControlClass} h-9 max-w-52`}
+                    className={`${control} h-9 max-w-full sm:max-w-52`}
                     defaultValue={t.category_id ?? ""}
                     disabled={pending}
                     onChange={(e) => {
@@ -258,7 +273,7 @@ export function TransacoesClient({
               <AppMoney
                 value={amount}
                 sign
-                className={`text-base font-semibold ${amount > 0 ? "text-ds-pos" : "text-ds-ink"}`}
+                className={`shrink-0 text-base font-semibold ${amount > 0 ? "text-ds-pos" : "text-ds-ink"}`}
               />
             </div>
           )

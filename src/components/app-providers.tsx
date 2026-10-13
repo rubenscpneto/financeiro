@@ -6,7 +6,7 @@ import { HideValuesProvider } from "@/components/hide-values-provider"
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <HideValuesProvider>{children}</HideValuesProvider>
     </ThemeProvider>
   )

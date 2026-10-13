@@ -22,10 +22,7 @@ export function MetasClient({ goals }: { goals: Goal[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
-        title="Metas"
-        subtitle="Objetivos financeiros com progresso."
-      />
+      <PageTitle subtitle="Objetivos financeiros com progresso." />
 
       <DsCard>
         <h2 className="text-lg font-semibold">Nova meta</h2>

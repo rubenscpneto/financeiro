@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { and, desc, eq, gte, lte } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm"
 import { db } from "@/db"
 import {
   accounts,
@@ -14,10 +14,15 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount } from "@/lib/crypto/rows"
 import { PainelClient } from "@/components/painel-client"
-import { PainelAccountFilter } from "@/components/painel-account-filter"
+import { BankFilter } from "@/components/bank-filter"
 import { currentYearMonth, monthBounds } from "@/lib/format"
 import { positionCurrentValue } from "@/lib/investments/value"
+import { accountIdsForBank, groupAccountsByBank } from "@/lib/banks"
+import { classifyTransaction } from "@/lib/txn-class"
+import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Account } from "@/lib/types"
+
+const EMPTY_UUID = "00000000-0000-0000-0000-000000000000"
 
 export default async function PainelPage({
   searchParams,
@@ -27,9 +32,24 @@ export default async function PainelPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
-  const accountId = params.account_id || null
   const yearMonth = currentYearMonth()
   const { start, end } = monthBounds(yearMonth)
+
+  const accountRows = await db
+    .select()
+    .from(accounts)
+    .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true)))
+
+  const decodedAccounts = accountRows
+    .map((a) => decAccount(crypto, a))
+    .sort(
+      (a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
+    ) as Account[]
+
+  const banks = groupAccountsByBank(decodedAccounts)
+  const bankIds = accountIdsForBank(banks, params.bank)
+  const scopedIds =
+    bankIds == null ? null : bankIds.length > 0 ? bankIds : [EMPTY_UUID]
 
   const txnFilters = [
     eq(transactions.user_id, userId),
@@ -44,11 +64,11 @@ export default async function PainelPage({
   ]
   const allTxnFilters = [eq(transactions.user_id, userId)]
 
-  if (accountId) {
-    txnFilters.push(eq(transactions.account_id, accountId))
-    snapshotFilters.push(eq(balanceSnapshots.account_id, accountId))
-    positionFilters.push(eq(investmentPositions.account_id, accountId))
-    allTxnFilters.push(eq(transactions.account_id, accountId))
+  if (scopedIds) {
+    txnFilters.push(inArray(transactions.account_id, scopedIds))
+    snapshotFilters.push(inArray(balanceSnapshots.account_id, scopedIds))
+    positionFilters.push(inArray(investmentPositions.account_id, scopedIds))
+    allTxnFilters.push(inArray(transactions.account_id, scopedIds))
   }
 
   const [
@@ -58,7 +78,6 @@ export default async function PainelPage({
     goalRowsRaw,
     categoryRows,
     snapshots,
-    accountRows,
     allTxns,
   ] = await Promise.all([
     db
@@ -69,6 +88,8 @@ export default async function PainelPage({
         account_id: transactions.account_id,
         is_transfer: transactions.is_transfer,
         source_type: transactions.source_type,
+        source_category: transactions.source_category,
+        description: transactions.description,
       })
       .from(transactions)
       .where(and(...txnFilters)),
@@ -114,10 +135,6 @@ export default async function PainelPage({
       })
       .from(balanceSnapshots)
       .where(and(...snapshotFilters)),
-    db
-      .select()
-      .from(accounts)
-      .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true))),
     db
       .select({
         amount: transactions.amount,
@@ -181,16 +198,29 @@ export default async function PainelPage({
   let expense = 0
   const byDay = new Map<string, { entradas: number; saidas: number }>()
   const byCat = new Map<string, number>()
+  const catName = new Map(categoryRows.map((c) => [c.id, c]))
 
   for (const t of txns) {
-    if (t.is_transfer) continue
     const amt = crypto.decryptNum("amount", t.amount)
+    const sourceCategory = crypto.decryptFlex("source_category", t.source_category)
+    const description = crypto.decryptFlex("description", t.description)
+    const cls = classifyTransaction({
+      amount: amt,
+      description,
+      source_type: t.source_type,
+      source_category: sourceCategory,
+      category_name: t.category_id
+        ? catName.get(t.category_id)?.name
+        : null,
+      is_transfer: t.is_transfer,
+    })
+    if (cls.hide) continue
     const day = t.date.slice(8, 10)
     const bucket = byDay.get(day) ?? { entradas: 0, saidas: 0 }
-    if (amt > 0) {
+    if (cls.isIncome) {
       income += amt
       bucket.entradas += amt
-    } else {
+    } else if (cls.isExpense) {
       expense += Math.abs(amt)
       bucket.saidas += Math.abs(amt)
       if (t.category_id) {
@@ -204,21 +234,30 @@ export default async function PainelPage({
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, v]) => ({ day, ...v }))
 
-  const catName = new Map(categoryRows.map((c) => [c.id, c]))
   const topCategories = [...byCat.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 6)
     .map(([id, value]) => ({
-      name: catName.get(id)?.name ?? "Outros",
+      name: categoryLabelPt(catName.get(id)?.name ?? "Outros"),
       value,
       color: catName.get(id)?.color,
     }))
 
   const spentByCat = new Map<string, number>()
   for (const t of txns) {
-    if (t.is_transfer || !t.category_id) continue
+    if (!t.category_id) continue
     const amt = crypto.decryptNum("amount", t.amount)
-    if (amt >= 0) continue
+    const sourceCategory = crypto.decryptFlex("source_category", t.source_category)
+    const description = crypto.decryptFlex("description", t.description)
+    const cls = classifyTransaction({
+      amount: amt,
+      description,
+      source_type: t.source_type,
+      source_category: sourceCategory,
+      category_name: catName.get(t.category_id)?.name,
+      is_transfer: t.is_transfer,
+    })
+    if (!cls.isExpense) continue
     spentByCat.set(
       t.category_id,
       (spentByCat.get(t.category_id) ?? 0) + Math.abs(amt)
@@ -226,7 +265,7 @@ export default async function PainelPage({
   }
 
   const budgetRows = budgetRowsRaw.map((b) => ({
-    name: b.category_name ?? "Categoria",
+    name: categoryLabelPt(b.category_name ?? "Categoria"),
     spent: spentByCat.get(b.category_id) ?? 0,
     limit: crypto.decryptNum("limit_amount", b.limit_amount),
   }))
@@ -237,17 +276,11 @@ export default async function PainelPage({
     target: crypto.decryptNum("target_amount", g.target_amount),
   }))
 
-  const decodedAccounts = accountRows
-    .map((a) => decAccount(crypto, a))
-    .sort(
-      (a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
-    )
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 justify-end">
         <Suspense>
-          <PainelAccountFilter accounts={decodedAccounts as Account[]} />
+          <BankFilter banks={banks} pathname="/painel" />
         </Suspense>
       </div>
       <PainelClient

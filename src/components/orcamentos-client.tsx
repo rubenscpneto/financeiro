@@ -38,10 +38,7 @@ export function OrcamentosClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
-        title="Planejar gastos"
-        subtitle="Teto mensal por categoria."
-      />
+      <PageTitle subtitle="Teto mensal por categoria." />
 
       <DsCard>
         <h2 className="text-lg font-semibold">Definir teto</h2>

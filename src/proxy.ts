@@ -26,7 +26,11 @@ export function proxy(request: NextRequest) {
     path === "/auth/cadastro" ||
     path === "/auth/esqueci-senha"
 
-  if (sessionCookie && authBounceWhenLoggedIn) {
+  if (
+    sessionCookie &&
+    authBounceWhenLoggedIn &&
+    request.nextUrl.searchParams.get("logout") !== "1"
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = "/painel"
     return NextResponse.redirect(url)

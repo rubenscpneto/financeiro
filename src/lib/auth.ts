@@ -25,6 +25,13 @@ export const auth = betterAuth({
       generateId: () => crypto.randomUUID(),
     },
   },
+  // Multiple concurrent sessions (same account on several devices).
+  // `session.userId` is indexed, not unique — do not revoke others on sign-in.
+  session: {
+    expiresIn: 60 * 60 * 24 * 30,
+    updateAge: 60 * 60 * 24,
+    storeSessionInDatabase: true,
+  },
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,

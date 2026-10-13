@@ -101,11 +101,8 @@ export function InvestimentosClient({
   )
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageTitle
-        title="Investimentos"
-        subtitle="Patrimônio, ativos e movimentações."
-      />
+    <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
+      <PageTitle subtitle="Patrimônio, ativos e movimentações." />
 
       <DsCard className="gap-2 border-ds-hero-stroke bg-ds-hero p-5 text-ds-on-hero">
         <p className="text-sm text-ds-on-hero-muted">Patrimônio investido</p>
@@ -136,7 +133,10 @@ export function InvestimentosClient({
           </div>
         </div>
         {series.some((p) => p.value > 0) ? (
-          <ChartContainer config={chartConfig} className="h-64 w-full">
+          <ChartContainer
+            config={chartConfig}
+            className="h-64 w-full min-w-0 max-w-full overflow-hidden"
+          >
             <AreaChart
               data={series}
               margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
@@ -189,8 +189,8 @@ export function InvestimentosClient({
         )}
       </DsCard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DsCard className="gap-0">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <DsCard className="min-w-0 gap-0 overflow-x-hidden">
           <div className="pb-3">
             <SectionHead title="Ativos" />
           </div>
@@ -232,7 +232,7 @@ export function InvestimentosClient({
                   />
                 </button>
                 {open ? (
-                  <div className="grid grid-cols-2 gap-3 pb-4 sm:grid-cols-3">
+                  <div className="grid min-w-0 grid-cols-2 gap-3 overflow-hidden pb-4 sm:grid-cols-3">
                     <Detail label="Data" value={formatDateBR(a.investedAt)} />
                     <Detail
                       label="Classe"
@@ -274,7 +274,7 @@ export function InvestimentosClient({
           ) : null}
         </DsCard>
 
-        <DsCard className="gap-0">
+        <DsCard className="min-w-0 gap-0 overflow-x-hidden">
           <div className="pb-3">
             <SectionHead title="Movimentações" />
           </div>
@@ -323,7 +323,7 @@ function Detail({
   value: ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden">
       <div className="text-sm text-ds-subtle">{label}</div>
       <div className="text-sm font-medium">{value}</div>
     </div>

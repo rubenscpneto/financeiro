@@ -18,6 +18,7 @@ import {
   PageTitle,
   dsControlClass,
 } from "@/components/design/primitives"
+import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 
 const KIND_LABEL: Record<string, string> = {
   expense: "Despesa",
@@ -36,10 +37,7 @@ export function CategoriasClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle
-        title="Categorias"
-        subtitle="Organize gastos e regras automáticas."
-      />
+      <PageTitle subtitle="Organize gastos e regras automáticas." />
       <Tabs defaultValue="categorias">
         <TabsList>
           <TabsTrigger value="categorias">Categorias</TabsTrigger>
@@ -98,7 +96,9 @@ export function CategoriasClient({
                   style={{ background: c.color ?? "#94a3b8" }}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-medium">{c.name}</p>
+                  <p className="truncate text-base font-medium">
+                    {categoryLabelPt(c.name)}
+                  </p>
                   <p className="text-sm text-ds-muted">
                     {KIND_LABEL[c.kind] ?? c.kind}
                     {c.is_system ? " · Sistema" : ""}
@@ -160,7 +160,7 @@ export function CategoriasClient({
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {categoryLabelPt(c.name)}
                       </option>
                     ))}
                   </select>
@@ -190,7 +190,8 @@ export function CategoriasClient({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-medium">{r.match_pattern}</p>
                   <p className="text-sm text-ds-muted">
-                    {r.categories?.name ?? "Categoria"} · prioridade {r.priority}
+                    {categoryLabelPt(r.categories?.name ?? "Categoria")} ·
+                    prioridade {r.priority}
                   </p>
                 </div>
                 <form
