@@ -34,5 +34,7 @@ describe("design tokens", () => {
     assert.match(dark, /--ds-subtle:\s*#9D9DA4/i)
     assert.match(dark, /--ds-btn:\s*#5FD394/i)
     assert.match(dark, /--ds-on-btn:\s*#05200F/i)
+    assert.match(dark, /--ds-accent:\s*#5FD394/i)
+    assert.match(dark, /--ds-pos:\s*#5FD394/i)
   })
 })

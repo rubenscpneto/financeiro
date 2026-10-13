@@ -34,7 +34,7 @@ export function BottomNav({ active }: { active: string }) {
             </span>
             <span
               className={cn(
-                "text-[13px]",
+                "text-sm",
                 on
                   ? "font-semibold text-ds-accent"
                   : "font-medium text-ds-subtle"
@@ -106,7 +106,7 @@ export function DesktopSidebar({ active }: { active: string }) {
             active={item.label === active}
           />
         ))}
-        <p className="px-3 pb-1.5 pt-5 text-[13px] font-semibold tracking-[0.06em] text-ds-subtle">
+        <p className="px-3 pb-1.5 pt-5 text-sm font-semibold tracking-[0.06em] text-ds-subtle">
           MAIS
         </p>
         {DESKTOP_MORE.map((item) => (

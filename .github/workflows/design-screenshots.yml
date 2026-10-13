@@ -32,6 +32,37 @@ jobs:
           CI: "true"
           ALLOW_DESIGN_GALLERY: "true"
 
+      - name: Fail if any expected screenshot is missing
+        run: |
+          set -euo pipefail
+          expected=(
+            inicio-mobile-390-escuro.png
+            inicio-mobile-390-claro.png
+            inicio-desktop-1440-escuro.png
+            inicio-desktop-1440-claro.png
+            configuracoes-mobile-390-escuro.png
+            configuracoes-mobile-390-claro.png
+            configuracoes-desktop-1440-escuro.png
+            configuracoes-desktop-1440-claro.png
+            inicio-mobile-390-escuro-escondido.png
+            inicio-mobile-390-claro-escondido.png
+          )
+          missing=0
+          for f in "${expected[@]}"; do
+            if [[ ! -f "design/screenshots/$f" ]]; then
+              echo "missing screenshot: design/screenshots/$f"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "Expected screenshots:"
+            printf '  %s\n' "${expected[@]}"
+            echo "Found:"
+            ls -1 design/screenshots || true
+            exit 1
+          fi
+          echo "All ${#expected[@]} expected screenshots are present."
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

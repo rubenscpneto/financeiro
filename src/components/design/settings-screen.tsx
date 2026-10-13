@@ -47,7 +47,7 @@ function Group({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[13px] font-semibold tracking-[0.06em] text-ds-subtle uppercase">
+      <p className="text-sm font-semibold tracking-[0.06em] text-ds-subtle uppercase">
         {title}
       </p>
       <div className="divide-y divide-ds-border overflow-hidden rounded-2xl border border-ds-border bg-ds-surface px-4">
@@ -108,7 +108,7 @@ function BudgetOpt({
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-base font-semibold">{label}</p>
           {badge ? (
-            <Chip className="px-2.5 py-0.5 text-xs">{badge}</Chip>
+            <Chip className="px-2.5 py-0.5 text-sm">{badge}</Chip>
           ) : null}
         </div>
         <p className="mt-1 text-sm leading-[1.35] text-ds-muted">{desc}</p>
@@ -248,7 +248,7 @@ function SettingsBody({
 
       <div className="flex flex-col items-center gap-0.5 pt-1">
         <p className="text-sm text-ds-subtle">{SYNC.footer}</p>
-        <p className="text-[13px] text-ds-subtle">
+        <p className="text-sm text-ds-subtle">
           Financeiro · versão de exemplo
         </p>
       </div>

@@ -18,7 +18,7 @@ export function SpendChart() {
 
   return (
     <div className="flex gap-3">
-      <div className="flex h-[220px] w-10 flex-col justify-between text-right text-[13px] text-ds-subtle">
+      <div className="flex h-[220px] w-10 flex-col justify-between text-right text-sm text-ds-subtle">
         <span>9 mil</span>
         <span>6 mil</span>
         <span>3 mil</span>
@@ -78,7 +78,7 @@ export function SpendChart() {
           />
           <circle cx={x(12)} cy={y(6380)} r="5" fill="var(--ds-danger)" />
         </svg>
-        <div className="mt-2 flex justify-between text-[13px] text-ds-subtle">
+        <div className="mt-2 flex justify-between text-sm text-ds-subtle">
           <span>1 out</span>
           <span>8 out</span>
           <span>15 out</span>

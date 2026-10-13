@@ -1,4 +1,4 @@
-import { maskMoneyInText } from "@/lib/design/money"
+import { formatBRLMasked, maskMoneyInText } from "@/lib/design/money"
 import {
   ALERTS,
   BUDGETS,
@@ -78,8 +78,7 @@ function BudgetRow({
       </div>
       <Bar pct={b.pct} tone={b.tone === "ok" ? "ok" : b.tone} />
       <p className="text-sm text-ds-muted">
-        Gastou {brl(b.spent, hidden, { compact: true })} de{" "}
-        {brl(b.limit, hidden, { compact: true })}
+        Gastou {brl(b.spent, hidden)} de {brl(b.limit, hidden)}
       </p>
     </div>
   )
@@ -217,14 +216,14 @@ function MobileHome({ hideValues }: { hideValues: boolean }) {
           ))}
         </DsCard>
 
-        <DsCard className="border-ds-accent-soft-border bg-ds-accent-soft">
+        <DsCard className="border-ds-accent-soft-border bg-ds-accent-soft dark:border-ds-border dark:bg-ds-surface">
           <div className="flex items-center gap-2">
             <DesignIcon name="sparkles" size={22} className="text-ds-accent" />
             <h2 className="text-lg font-semibold">Pensando em comprar algo?</h2>
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-ds-accent-soft-border bg-ds-surface py-1.5 pr-1.5 pl-3.5">
             <span className="min-w-0 flex-1 text-base text-ds-subtle">
-              Ex.: tênis por {hideValues ? "R$ ••••" : "R$ 600"}
+              Ex.: tênis por {formatBRLMasked(600, hideValues)}
             </span>
             <span className="rounded-[10px] bg-ds-btn px-4 py-3 text-[15px] font-semibold text-ds-on-btn">
               Perguntar
@@ -232,7 +231,7 @@ function MobileHome({ hideValues }: { hideValues: boolean }) {
           </div>
           <p className="text-sm leading-[1.35] text-ds-muted">
             {maskMoneyInText(
-              "Última pergunta: fone Sony de R$ 1.299. Resposta: melhor esperar, o limite de Compras já passou.",
+              "Última pergunta: fone Sony de R$ 1.299,00. Resposta: melhor esperar, o limite de Compras já passou.",
               hideValues
             )}
           </p>
@@ -317,8 +316,8 @@ function DesktopHome({ hideValues }: { hideValues: boolean }) {
               <Money value={TOTALS.checking} hidden={hideValues} />
             </p>
             <p className="text-sm text-ds-muted">
-              Entrou <Money value={TOTALS.monthIncome} hidden={hideValues} compact /> e
-              saiu <Money value={TOTALS.monthOut} hidden={hideValues} compact /> este
+              Entrou <Money value={TOTALS.monthIncome} hidden={hideValues} /> e
+              saiu <Money value={TOTALS.monthOut} hidden={hideValues} /> este
               mês
             </p>
           </DsCard>
@@ -411,7 +410,7 @@ function DesktopHome({ hideValues }: { hideValues: boolean }) {
                 <BudgetRow key={b.name} b={b} hidden={hideValues} />
               ))}
             </DsCard>
-            <DsCard className="gap-2 border-ds-accent-soft-border bg-ds-accent-soft p-5">
+            <DsCard className="gap-2 border-ds-accent-soft-border bg-ds-accent-soft p-5 dark:border-ds-border dark:bg-ds-surface">
               <div className="flex items-center gap-2">
                 <DesignIcon
                   name="sparkles"
@@ -427,7 +426,7 @@ function DesktopHome({ hideValues }: { hideValues: boolean }) {
                 <Money value={1299} hidden={hideValues} />
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-ds-warn-soft px-3 py-1 text-[13px] font-medium text-ds-warn">
+                <span className="rounded-full bg-ds-warn-soft px-3 py-1 text-sm font-medium text-ds-warn">
                   Melhor esperar
                 </span>
                 <span className="text-sm text-ds-muted">
@@ -444,7 +443,7 @@ function DesktopHome({ hideValues }: { hideValues: boolean }) {
 
 export function HomeScreen({
   variant,
-  hideValues = false,
+  hideValues = true,
 }: {
   variant: "mobile" | "desktop"
   hideValues?: boolean

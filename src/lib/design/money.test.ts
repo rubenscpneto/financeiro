@@ -8,6 +8,12 @@ describe("formatBRLMasked", () => {
     assert.match(out, /R\$\s*184\.320,55/)
   })
 
+  it("always uses two decimal places, including whole reais", () => {
+    assert.match(formatBRLMasked(1299, false), /R\$\s*1\.299,00/)
+    assert.match(formatBRLMasked(600, false), /R\$\s*600,00/)
+    assert.match(formatBRLMasked(12650, false), /R\$\s*12\.650,00/)
+  })
+
   it("hides the amount when hidden is true", () => {
     assert.equal(formatBRLMasked(184320.55, true), "R$ ••••")
   })

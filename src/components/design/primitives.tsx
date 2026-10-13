@@ -100,7 +100,7 @@ export function Chip({
 
 export function Flag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-ds-danger-soft px-2.5 py-0.5 text-[13px] font-medium text-ds-danger">
+    <span className="inline-flex items-center rounded-full bg-ds-danger-soft px-2.5 py-0.5 text-sm font-medium text-ds-danger">
       {children}
     </span>
   )

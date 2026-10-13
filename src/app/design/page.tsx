@@ -1,6 +1,7 @@
 import { HomeScreen } from "@/components/design/home-screen"
 import { SettingsScreen } from "@/components/design/settings-screen"
 import { DesignFrame } from "@/components/design/chrome"
+import { hideValuesFromSearchParam } from "@/lib/design/hide-values"
 
 type Theme = "claro" | "escuro"
 type View = "inicio" | "configuracoes"
@@ -19,13 +20,15 @@ function Screen({
   view,
   theme,
   variant,
+  hideValues,
 }: {
   view: View
   theme: Theme
   variant: "mobile" | "desktop"
+  hideValues: boolean
 }) {
   if (view === "inicio") {
-    return <HomeScreen variant={variant} hideValues={false} />
+    return <HomeScreen variant={variant} hideValues={hideValues} />
   }
   return (
     <SettingsScreen
@@ -40,7 +43,12 @@ function Screen({
 export default async function DesignPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; theme?: string; size?: string }>
+  searchParams: Promise<{
+    view?: string
+    theme?: string
+    size?: string
+    hidden?: string
+  }>
 }) {
   const params = await searchParams
   const view =
@@ -51,11 +59,17 @@ export default async function DesignPage({
         : null
   const theme: Theme = params.theme === "claro" ? "claro" : "escuro"
   const variant = params.size === "1440" ? "desktop" : "mobile"
+  const hideValues = hideValuesFromSearchParam(params.hidden)
 
   if (view) {
     return (
       <DesignFrame theme={theme} className="min-h-screen">
-        <Screen view={view} theme={theme} variant={variant} />
+        <Screen
+          view={view}
+          theme={theme}
+          variant={variant}
+          hideValues={hideValues}
+        />
       </DesignFrame>
     )
   }
@@ -87,6 +101,7 @@ export default async function DesignPage({
                       view={screen.view}
                       theme={t}
                       variant={size.variant}
+                      hideValues={hideValues}
                     />
                   </DesignFrame>
                 </div>
