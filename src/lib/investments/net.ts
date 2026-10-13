@@ -7,6 +7,7 @@ import {
   roundCents,
   titleNet,
   weightedContractedCdi,
+  isCdbLocked,
 } from "@/lib/money-math"
 import { positionCurrentValue, positionInvestedValue } from "@/lib/investments/value"
 import type { CdiRate } from "@/lib/cdi"
@@ -57,8 +58,7 @@ function parsePctCdi(rate: number | null, rateType: string | null): number | nul
 }
 
 export function isLocked(p: PositionLike, asOf: string) {
-  if (!p.due_date) return false
-  return holdingDays(asOf, p.due_date) > 60
+  return isCdbLocked({ name: p.asset_name, dueDate: p.due_date ?? null }, asOf)
 }
 
 export function titledPosition(p: PositionLike, asOf: string): TitledPosition {

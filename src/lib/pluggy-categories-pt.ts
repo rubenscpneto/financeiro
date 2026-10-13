@@ -54,7 +54,9 @@ const CATEGORY_PT: Record<string, string> = {
   "credit card": "Cartão de crédito",
   "other": "Outros",
   "others": "Outros",
-  "uncategorized": "Sem categoria",
+  "uncategorized": "A classificar",
+  "a classificar": "A classificar",
+  "sem categoria": "A classificar",
   "personal care": "Cuidados pessoais",
   "subscriptions": "Assinaturas",
   "subscription": "Assinaturas",
@@ -99,7 +101,7 @@ function normalizeKey(value: string) {
 
 /** Display label for a stored or Pluggy category name. */
 export function categoryLabelPt(name: string | null | undefined): string {
-  if (!name) return "Sem categoria"
+  if (!name) return "A classificar"
   const key = normalizeKey(name)
   if (CATEGORY_PT[key]) return CATEGORY_PT[key]
   const hyphen = key.replace(/-/g, " ")

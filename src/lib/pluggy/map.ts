@@ -40,7 +40,11 @@ export function mapBalanceForSnapshot(
   return Number(account.balance) || 0
 }
 
-function isTransferHeuristic(txn: PluggyTransaction): boolean {
+function isTransferHeuristic(
+  txn: PluggyTransaction,
+  sourceType: AccountSourceType
+): boolean {
+  if (sourceType === "credit_card") return false
   const method = txn.paymentData?.paymentMethod?.toUpperCase() ?? ""
   if (["PIX", "TED", "DOC", "TEV"].includes(method)) return true
   const cat = (txn.category ?? "").toLowerCase()
@@ -84,7 +88,7 @@ export function mapTransaction(
     merchant: txn.merchant?.name ?? undefined,
     installment,
     sourceCategory: txn.category ?? null,
-    isTransfer: isTransferHeuristic(txn),
+    isTransfer: isTransferHeuristic(txn, sourceType),
     pending: txn.status === "PENDING",
     externalHash: makeHash("pluggy", txn.id),
     confidence: "high",

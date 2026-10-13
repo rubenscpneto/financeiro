@@ -390,7 +390,7 @@ export function TransacoesClient({
                       </div>
                       <p className="truncate text-sm text-ds-muted">
                         <span className="text-ds-accent">
-                          {t.categories?.name ?? "Sem categoria"}
+                          {t.categories?.name ?? "A classificar"}
                         </span>
                         {" · "}
                         {t.accounts?.name ?? "Conta"}
@@ -487,7 +487,7 @@ export function TransacoesClient({
                               })
                             }}
                           >
-                            <option value="">Sem categoria</option>
+                            <option value="">A classificar</option>
                             {categories.map((c) => (
                               <option key={c.id} value={c.id}>
                                 {c.name}
@@ -516,7 +516,7 @@ export function TransacoesClient({
                           })
                         }}
                       >
-                        <option value="">Sem categoria</option>
+                        <option value="">A classificar</option>
                         {categories.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}

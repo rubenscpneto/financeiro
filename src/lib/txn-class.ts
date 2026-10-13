@@ -92,7 +92,13 @@ function isSamePersonTransfer(text: string) {
   )
 }
 
-function isLoan(text: string) {
+function isLoanCategory(name: string | null | undefined) {
+  const n = norm(name)
+  return n === "emprestimos" || n === "emprestimo" || n === "loans" || n === "loan"
+}
+
+function isLoan(text: string, categoryName?: string | null) {
+  if (isLoanCategory(categoryName)) return true
   return (
     /\bemprestimos?\b/.test(text) ||
     /\bloans?\b/.test(text) ||
@@ -100,6 +106,21 @@ function isLoan(text: string) {
     text.includes("emprestimo a") ||
     text.includes("loan to")
   )
+}
+
+function isUnclassified(t: ClassifiableTxn) {
+  const n = norm(t.category_name)
+  if (n === "a classificar" || n === "uncategorized" || n === "sem categoria") {
+    return true
+  }
+  if (t.category_name) return false
+  const src = norm(t.source_category)
+  return !src || src === "uncategorized" || src === "sem categoria"
+}
+
+function spendingCategoryLabel(t: ClassifiableTxn): string | null {
+  if (isUnclassified(t)) return "A classificar"
+  return t.category_name ?? null
 }
 
 function isCdbOrInvestmentMove(text: string, sourceType?: string | null) {
@@ -236,7 +257,7 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
     })
   }
 
-  if (isLoan(text)) {
+  if (isLoan(text, t.category_name)) {
     return emptyClass({
       kind: "loan",
       pending,
@@ -293,15 +314,6 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
     })
   }
 
-  if (t.is_transfer) {
-    return emptyClass({
-      kind: "transfer",
-      pending,
-      categoryLabel: "Transferência",
-      installmentLabel,
-    })
-  }
-
   if (amount > 0) {
     return emptyClass({
       kind: "income",
@@ -319,6 +331,7 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
     expenseDelta: expense,
     countInCategory: expense > 0,
     pending,
+    categoryLabel: spendingCategoryLabel(t),
     installmentLabel,
   })
 }

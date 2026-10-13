@@ -8,6 +8,7 @@ import {
   iofRate,
   irOnEarnings,
   irRate,
+  isCdbLocked,
   pctOfCdi,
   rendimentoExcludingFlows,
   reservaLivre,
@@ -131,5 +132,36 @@ describe("reserva livre", () => {
     assert.equal(reserveTarget(4850), 29100)
     assert.equal(Number(reserveMonths(livre, 4850).toFixed(1)), 4.8)
     assert.equal(Number((reserveProgress(livre, 29100) * 100).toFixed(1)), 79.4)
+  })
+
+  it("excludes a CDB locked until a far due date from liquid reserve", () => {
+    const asOf = "2026-10-13"
+    assert.equal(
+      isCdbLocked({ name: "CDB prefixado", dueDate: "2031-05-20" }, asOf),
+      true
+    )
+    assert.equal(
+      isCdbLocked(
+        { name: "CDB Liquidez diária", dueDate: "2028-01-10" },
+        asOf
+      ),
+      false
+    )
+    const dailyNet = 5300
+    const checking = 2000
+    const openBill = 400
+    const lockedNet = 12000
+    const liquid = [lockedNet, dailyNet]
+      .filter((_, i) =>
+        i === 0
+          ? !isCdbLocked({ name: "CDB prefixado", dueDate: "2031-05-20" }, asOf)
+          : !isCdbLocked(
+              { name: "CDB Liquidez diária", dueDate: "2028-01-10" },
+              asOf
+            )
+      )
+      .reduce((s, n) => s + n, 0)
+    assert.equal(liquid, dailyNet)
+    assert.equal(reservaLivre(liquid + checking, openBill), 6900)
   })
 })

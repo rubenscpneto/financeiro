@@ -116,6 +116,26 @@ export function reservaLivre(
   return roundCents(disponivelHoje - openBills)
 }
 
+/** Daily-liquidity titles stay available; far-maturity CDBs do not. */
+export function isCdbLocked(
+  p: { name?: string | null; dueDate?: string | null },
+  asOf: string
+): boolean {
+  const name = (p.name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+  if (/liquidez\s+diaria/.test(name)) return false
+  if (p.dueDate && holdingDays(asOf, p.dueDate) > 60) return true
+  const asOfY = Number(asOf.slice(0, 4))
+  if (Number.isFinite(asOfY)) {
+    for (const m of name.matchAll(/\b(20\d{2})\b/g)) {
+      if (Number(m[1]) - asOfY >= 2) return true
+    }
+  }
+  return false
+}
+
 export function reserveTarget(recurringSpend: number): number {
   return roundCents(6 * recurringSpend)
 }

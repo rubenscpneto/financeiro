@@ -229,3 +229,121 @@ test("pending notes surface as pending", () => {
   })
   assert.equal(c.pending, true)
 })
+
+test("card Transfers purchases count as spending, including IOF", () => {
+  const c = classifyTransaction({
+    description: "Subscription",
+    amount: -20,
+    source_type: "credit_card",
+    source_category: "Transfers",
+    is_transfer: true,
+  })
+  assert.equal(c.isExpense, true)
+  assert.equal(c.kind, "expense")
+  assert.equal(c.expenseDelta, 20)
+
+  const rows = decorateTransactions(
+    [
+      {
+        id: "sub",
+        date: "2026-09-04",
+        account_id: "card",
+        description: "Subscription",
+        amount: -20,
+        source_type: "credit_card",
+        source_category: "Transfers",
+        is_transfer: true,
+      },
+      {
+        id: "iof",
+        date: "2026-09-04",
+        account_id: "card",
+        description: "IOF",
+        amount: -0.7,
+        source_type: "credit_card",
+      },
+    ],
+    { yearMonth: "2026-09" }
+  )
+  const sub = rows.find((r) => r.id === "sub")!
+  const iof = rows.find((r) => r.id === "iof")!
+  assert.equal(iof.class.hide, true)
+  assert.equal(sub.class.expenseDelta, 20.7)
+})
+
+test("checking debits count as spending except bill, CDB, and own-account transfers", () => {
+  const food = classifyTransaction({
+    description: "Padaria",
+    amount: -32.9,
+    source_type: "checking",
+    source_category: "Food and drinks",
+  })
+  assert.equal(food.isExpense, true)
+
+  const service = classifyTransaction({
+    description: "Payment processor",
+    amount: -15,
+    source_type: "checking",
+    source_category: "Services",
+    is_transfer: true,
+  })
+  assert.equal(service.isExpense, true)
+
+  const pix = classifyTransaction({
+    description: "Pix",
+    amount: -50,
+    source_type: "checking",
+    is_transfer: true,
+  })
+  assert.equal(pix.isExpense, true)
+  assert.equal(pix.categoryLabel, "A classificar")
+
+  const bill = classifyTransaction({
+    description: "Pagamento fatura cartão",
+    amount: -1200,
+    source_type: "checking",
+  })
+  assert.equal(bill.isExpense, false)
+
+  const cdb = classifyTransaction({
+    description: "Aplicação CDB",
+    amount: -5000,
+    source_type: "checking",
+  })
+  assert.equal(cdb.isExpense, false)
+
+  const own = classifyTransaction({
+    description: "Pix",
+    amount: -200,
+    source_type: "checking",
+    source_category: "Same Person Transfer",
+    is_transfer: true,
+  })
+  assert.equal(own.isExpense, false)
+  assert.equal(own.kind, "transfer")
+})
+
+test("A classificar spends until the user marks Empréstimo", () => {
+  const open = classifyTransaction({
+    description: "Pix",
+    amount: -80,
+    source_type: "checking",
+    is_transfer: true,
+    date: "2026-09-12",
+  })
+  assert.equal(open.isExpense, true)
+  assert.equal(open.kind, "expense")
+  assert.equal(open.categoryLabel, "A classificar")
+
+  const loan = classifyTransaction({
+    description: "Pix",
+    amount: -80,
+    source_type: "checking",
+    is_transfer: true,
+    category_name: "Empréstimos",
+    date: "2026-09-12",
+  })
+  assert.equal(loan.isExpense, false)
+  assert.equal(loan.kind, "loan")
+  assert.equal(loan.categoryLabel, "Empréstimos")
+})
