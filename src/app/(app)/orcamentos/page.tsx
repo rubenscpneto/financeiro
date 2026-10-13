@@ -2,6 +2,7 @@ import { and, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/db"
 import { budgets, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { OrcamentosClient } from "@/components/orcamentos-client"
 import { currentYearMonth, monthBounds } from "@/lib/format"
 import type { Budget, Category } from "@/lib/types"
@@ -12,6 +13,7 @@ export default async function OrcamentosPage({
   searchParams: Promise<{ mes?: string }>
 }) {
   const { userId } = await requireUserOrRedirect()
+  const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
   const yearMonth = params.mes || currentYearMonth()
   const { start, end } = monthBounds(yearMonth)
@@ -25,12 +27,13 @@ export default async function OrcamentosPage({
       })
       .from(budgets)
       .leftJoin(categories, eq(budgets.category_id, categories.id))
-      .where(and(eq(budgets.user_id, userId), eq(budgets.year_month, yearMonth))),
+      .where(and(eq(budgets.user_id, userId), eq(budgets.year_month, yearMonth)))
+      .orderBy(budgets.category_id, budgets.id),
     db
       .select()
       .from(categories)
       .where(eq(categories.user_id, userId))
-      .orderBy(categories.name),
+      .orderBy(categories.name, categories.id),
     db
       .select({
         category_id: transactions.category_id,
@@ -51,14 +54,14 @@ export default async function OrcamentosPage({
   const spentByCat = new Map<string, number>()
   for (const t of txns) {
     if (!t.category_id) continue
-    const amt = Number(t.amount)
+    const amt = crypto.decryptNum("amount", t.amount)
     if (amt >= 0) continue
     spentByCat.set(t.category_id, (spentByCat.get(t.category_id) ?? 0) + amt)
   }
 
   const rows = budgetRows.map((b) => ({
     ...b.budget,
-    limit_amount: Number(b.budget.limit_amount),
+    limit_amount: crypto.decryptNum("limit_amount", b.budget.limit_amount),
     categories: b.category_name
       ? { name: b.category_name, color: b.category_color }
       : null,

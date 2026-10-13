@@ -6,7 +6,6 @@ import {
   index,
   integer,
   jsonb,
-  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -145,12 +144,13 @@ export const accounts = pgTable(
     created_at: timestamptz("created_at").notNull().defaultNow(),
     updated_at: timestamptz("updated_at").notNull().defaultNow(),
     pluggy_account_id: text("pluggy_account_id"),
+    pluggy_account_id_bidx: text("pluggy_account_id_bidx"),
   },
   (table) => [
     index("accounts_user_id_idx").on(table.user_id),
-    uniqueIndex("accounts_user_pluggy_account_uidx")
-      .on(table.user_id, table.pluggy_account_id)
-      .where(sql`${table.pluggy_account_id} is not null`),
+    uniqueIndex("accounts_user_pluggy_bidx_uidx")
+      .on(table.user_id, table.pluggy_account_id_bidx)
+      .where(sql`${table.pluggy_account_id_bidx} is not null`),
   ]
 )
 
@@ -242,7 +242,7 @@ export const transactions = pgTable(
     }),
     date: date("date", { mode: "string" }).notNull(),
     description: text("description").notNull(),
-    amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+    amount: text("amount").notNull(),
     category_id: uuid("category_id").references(() => categories.id, {
       onDelete: "set null",
     }),
@@ -283,7 +283,7 @@ export const budgets = pgTable(
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
     year_month: text("year_month").notNull(),
-    limit_amount: numeric("limit_amount", { precision: 14, scale: 2 }).notNull(),
+    limit_amount: text("limit_amount").notNull(),
     created_at: timestamptz("created_at").notNull().defaultNow(),
     updated_at: timestamptz("updated_at").notNull().defaultNow(),
   },
@@ -306,13 +306,8 @@ export const goals = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    target_amount: numeric("target_amount", {
-      precision: 14,
-      scale: 2,
-    }).notNull(),
-    current_amount: numeric("current_amount", { precision: 14, scale: 2 })
-      .notNull()
-      .default("0"),
+    target_amount: text("target_amount").notNull(),
+    current_amount: text("current_amount").notNull().default("0"),
     deadline: date("deadline", { mode: "string" }),
     color: text("color"),
     is_archived: boolean("is_archived").notNull().default(false),
@@ -335,24 +330,18 @@ export const investmentPositions = pgTable(
     ticker: text("ticker"),
     asset_name: text("asset_name").notNull(),
     asset_class: assetClassEnum("asset_class").notNull().default("outro"),
-    quantity: numeric("quantity", { precision: 18, scale: 8 })
-      .notNull()
-      .default("0"),
-    avg_price: numeric("avg_price", { precision: 14, scale: 4 })
-      .notNull()
-      .default("0"),
-    current_price: numeric("current_price", { precision: 14, scale: 4 })
-      .notNull()
-      .default("0"),
+    quantity: text("quantity").notNull().default("0"),
+    avg_price: text("avg_price").notNull().default("0"),
+    current_price: text("current_price").notNull().default("0"),
     as_of: date("as_of", { mode: "string" }).notNull().default(sql`CURRENT_DATE`),
     external_hash: text("external_hash").notNull(),
     created_at: timestamptz("created_at").notNull().defaultNow(),
     updated_at: timestamptz("updated_at").notNull().defaultNow(),
     purchase_date: date("purchase_date", { mode: "string" }),
-    rate: numeric("rate"),
+    rate: text("rate"),
     rate_type: text("rate_type"),
-    amount_original: numeric("amount_original"),
-    amount_withdrawal: numeric("amount_withdrawal"),
+    amount_original: text("amount_original"),
+    amount_withdrawal: text("amount_withdrawal"),
     is_active: boolean("is_active").notNull().default(true),
   },
   (table) => [
@@ -384,7 +373,7 @@ export const investmentMovements = pgTable(
     date: date("date", { mode: "string" }).notNull(),
     type: investmentMovementTypeEnum("type").notNull().default("outro"),
     description: text("description"),
-    amount: numeric("amount", { precision: 14, scale: 2 }).notNull(),
+    amount: text("amount").notNull(),
     external_hash: text("external_hash").notNull(),
     created_at: timestamptz("created_at").notNull().defaultNow(),
   },
@@ -413,8 +402,9 @@ export const balanceSnapshots = pgTable(
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     source_type: text("source_type").notNull(),
-    balance: numeric("balance").notNull(),
+    balance: text("balance").notNull(),
     pluggy_account_id: text("pluggy_account_id"),
+    pluggy_account_id_bidx: text("pluggy_account_id_bidx"),
     updated_at: timestamptz("updated_at").notNull().defaultNow(),
   },
   (table) => [
@@ -428,3 +418,42 @@ export const balanceSnapshots = pgTable(
     ),
   ]
 )
+
+/** Per-user wrapped DEK. KEK never stored here. */
+export const userKeys = pgTable("user_keys", {
+  user_id: uuid("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  wrapped_dek: text("wrapped_dek").notNull(),
+  kek_version: text("kek_version").notNull(),
+  created_at: timestamptz("created_at").notNull().defaultNow(),
+})
+
+/** v2 sharing placeholder — schema only. */
+export const keyGrants = pgTable(
+  "key_grants",
+  {
+    scope_id: uuid("scope_id").notNull(),
+    grantee_user_id: uuid("grantee_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    wrapped_dek: text("wrapped_dek").notNull(),
+    created_at: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "key_grants_pkey",
+      columns: [table.scope_id, table.grantee_user_id],
+    }),
+    index("key_grants_grantee_idx").on(table.grantee_user_id),
+  ]
+)
+
+export const pluggyConnections = pgTable("pluggy_connections", {
+  user_id: uuid("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  item_id: text("item_id").notNull(),
+  created_at: timestamptz("created_at").notNull().defaultNow(),
+  updated_at: timestamptz("updated_at").notNull().defaultNow(),
+})

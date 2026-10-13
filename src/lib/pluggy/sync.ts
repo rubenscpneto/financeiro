@@ -10,6 +10,15 @@ import {
   investmentPositions,
   transactions,
 } from "@/db/schema"
+import type { UserCrypto } from "@/lib/crypto/codec"
+import {
+  encAccount,
+  encMovement,
+  encPosition,
+  encTransaction,
+} from "@/lib/crypto/rows"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
+import { resolvePluggyItemId } from "@/lib/pluggy/item-store"
 import {
   applyCategoryRules,
   resolveCategoriesFromSource,
@@ -25,7 +34,6 @@ import {
   fetchInvestments,
   fetchItem,
   getApiKey,
-  getItemId,
   type PluggyAccount,
 } from "@/lib/pluggy/client"
 import {
@@ -55,6 +63,7 @@ function last4FromNumber(number: string | null | undefined): string | null {
 }
 
 async function upsertLocalAccount(
+  crypto: UserCrypto,
   userId: string,
   input: {
     pluggyAccountId: string
@@ -65,26 +74,48 @@ async function upsertLocalAccount(
     currency: string
   }
 ): Promise<string> {
-  const [existing] = await db
+  const bidx = crypto.blindIndex(input.pluggyAccountId)
+  const [byBidx] = await db
     .select({ id: accounts.id })
     .from(accounts)
     .where(
-      and(
-        eq(accounts.user_id, userId),
-        eq(accounts.pluggy_account_id, input.pluggyAccountId)
-      )
+      and(eq(accounts.user_id, userId), eq(accounts.pluggy_account_id_bidx, bidx))
     )
     .limit(1)
+
+  let existing = byBidx
+  if (!existing) {
+    const [byPlain] = await db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(
+        and(
+          eq(accounts.user_id, userId),
+          eq(accounts.pluggy_account_id, input.pluggyAccountId)
+        )
+      )
+      .limit(1)
+    existing = byPlain
+  }
+
+  const enc = encAccount(crypto, {
+    name: input.name,
+    institution: input.institution,
+    last4: input.last4,
+    pluggy_account_id: input.pluggyAccountId,
+  })
 
   if (existing?.id) {
     await db
       .update(accounts)
       .set({
-        name: input.name,
+        name: enc.name,
         type: input.type,
-        institution: input.institution,
-        last4: input.last4,
+        institution: enc.institution,
+        last4: enc.last4,
         currency: input.currency,
+        pluggy_account_id: enc.pluggy_account_id,
+        pluggy_account_id_bidx: enc.pluggy_account_id_bidx,
         is_active: true,
         updated_at: new Date(),
       })
@@ -96,11 +127,12 @@ async function upsertLocalAccount(
     .insert(accounts)
     .values({
       user_id: userId,
-      pluggy_account_id: input.pluggyAccountId,
-      name: input.name,
+      pluggy_account_id: enc.pluggy_account_id,
+      pluggy_account_id_bidx: enc.pluggy_account_id_bidx,
+      name: enc.name,
       type: input.type,
-      institution: input.institution,
-      last4: input.last4,
+      institution: enc.institution,
+      last4: enc.last4,
       currency: input.currency,
       is_active: true,
     })
@@ -118,9 +150,10 @@ async function upsertLocalAccount(
  * Admin-context: caller must already scope to PLUGGY_SYNC_USER_ID.
  */
 export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
+  const crypto = await getOrCreateUserCrypto(userId)
   let itemId: string
   try {
-    itemId = getItemId()
+    itemId = await resolvePluggyItemId(crypto)
   } catch {
     return {
       error: "Configure PLUGGY_ITEM_ID (UUID do Item no Meu Pluggy).",
@@ -169,7 +202,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     if (!sourceType) continue
 
     try {
-      const localId = await upsertLocalAccount(userId, {
+      const localId = await upsertLocalAccount(crypto, userId, {
         pluggyAccountId: acc.id,
         name: acc.name || `${institution} ${sourceType}`,
         type: sourceType,
@@ -188,16 +221,18 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
           user_id: userId,
           account_id: localId,
           source_type: sourceType,
-          balance: String(balance),
-          pluggy_account_id: acc.id,
+          balance: crypto.encryptNum("balance", balance),
+          pluggy_account_id: crypto.encrypt("pluggy_account_id", acc.id),
+          pluggy_account_id_bidx: crypto.blindIndex(acc.id),
           updated_at: now,
         })
         .onConflictDoUpdate({
           target: [balanceSnapshots.user_id, balanceSnapshots.account_id],
           set: {
             source_type: sourceType,
-            balance: String(balance),
-            pluggy_account_id: acc.id,
+            balance: crypto.encryptNum("balance", balance),
+            pluggy_account_id: crypto.encrypt("pluggy_account_id", acc.id),
+            pluggy_account_id_bidx: crypto.blindIndex(acc.id),
             updated_at: now,
           },
         })
@@ -212,7 +247,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
   const investPluggyId = `invest:${itemId}`
   let investAccountId: string
   try {
-    investAccountId = await upsertLocalAccount(userId, {
+    investAccountId = await upsertLocalAccount(crypto, userId, {
       pluggyAccountId: investPluggyId,
       name: `${institution} — Investimentos`,
       type: "investment",
@@ -240,7 +275,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     .where(and(eq(accounts.user_id, userId), isNotNull(accounts.pluggy_account_id)))
 
   for (const row of linkedAccounts) {
-    const pid = row.pluggy_account_id
+    const pid = crypto.decryptFlex("pluggy_account_id", row.pluggy_account_id)
     if (pid && !seenPluggyIds.has(pid)) {
       await db
         .update(accounts)
@@ -252,6 +287,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
   const [rules, categoryRows] = await Promise.all([
     db
       .select({
+        id: categoryRules.id,
         match_pattern: categoryRules.match_pattern,
         category_id: categoryRules.category_id,
         priority: categoryRules.priority,
@@ -259,7 +295,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
       })
       .from(categoryRules)
       .where(eq(categoryRules.user_id, userId))
-      .orderBy(categoryRules.priority),
+      .orderBy(categoryRules.priority, categoryRules.id),
     db
       .select({
         id: categories.id,
@@ -326,29 +362,44 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
 
     const fromRules = applyCategoryRules(
       parsed,
-      rules,
+      rules.map((r) => ({
+        ...r,
+        match_pattern:
+          crypto.decryptFlex("match_pattern", r.match_pattern) ??
+          r.match_pattern,
+      })),
       sourceType as AccountSourceType
     )
 
-    const rows = parsed.map((t) => ({
-      user_id: userId,
-      account_id: accountId,
-      import_id: null,
-      date: t.date,
-      description: t.description,
-      amount: String(t.amount),
-      category_id:
-        fromSource.get(t.externalHash) ??
-        fromRules.get(t.externalHash) ??
-        null,
-      merchant: t.merchant ?? null,
-      installment: t.installment ?? null,
-      external_hash: t.externalHash,
-      source_category: t.sourceCategory ?? null,
-      source_type: sourceType,
-      is_transfer: Boolean(t.isTransfer),
-      updated_at: now,
-    }))
+    const rows = parsed.map((t) => {
+      const enc = encTransaction(crypto, {
+        description: t.description,
+        amount: t.amount,
+        merchant: t.merchant ?? null,
+        installment: t.installment ?? null,
+        source_category: t.sourceCategory ?? null,
+        external_hash: t.externalHash,
+      })
+      return {
+        user_id: userId,
+        account_id: accountId,
+        import_id: null,
+        date: t.date,
+        description: enc.description,
+        amount: enc.amount,
+        category_id:
+          fromSource.get(t.externalHash) ??
+          fromRules.get(t.externalHash) ??
+          null,
+        merchant: enc.merchant,
+        installment: enc.installment,
+        external_hash: enc.external_hash,
+        source_category: enc.source_category,
+        source_type: sourceType,
+        is_transfer: Boolean(t.isTransfer),
+        updated_at: now,
+      }
+    })
 
     try {
       const data = await db
@@ -392,29 +443,43 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     }
   }
 
-  const positionRows = investments
+  const mappedPositions = investments
     .map(mapInvestment)
     .filter((p): p is NonNullable<typeof p> => p != null)
-    .map((p) => ({
-      user_id: userId,
-      account_id: investAccountId,
+
+  const positionRows = mappedPositions.map((p) => {
+    const enc = encPosition(crypto, {
       ticker: p.ticker ?? null,
       asset_name: p.assetName,
+      quantity: p.quantity,
+      avg_price: p.avgPrice,
+      current_price: p.currentPrice,
+      rate: p.rate,
+      rate_type: p.rateType,
+      amount_original: p.amountOriginal,
+      amount_withdrawal: p.amountWithdrawal,
+      external_hash: p.externalHash,
+    })
+    return {
+      user_id: userId,
+      account_id: investAccountId,
+      ticker: enc.ticker,
+      asset_name: enc.asset_name,
       asset_class: p.assetClass,
-      quantity: String(p.quantity),
-      avg_price: String(p.avgPrice),
-      current_price: String(p.currentPrice),
+      quantity: enc.quantity,
+      avg_price: enc.avg_price,
+      current_price: enc.current_price,
       as_of: p.asOf,
       purchase_date: p.purchaseDate ?? null,
-      rate: p.rate != null ? String(p.rate) : null,
-      rate_type: p.rateType ?? null,
-      amount_original: p.amountOriginal != null ? String(p.amountOriginal) : null,
-      amount_withdrawal:
-        p.amountWithdrawal != null ? String(p.amountWithdrawal) : null,
-      external_hash: p.externalHash,
+      rate: enc.rate,
+      rate_type: enc.rate_type,
+      amount_original: enc.amount_original,
+      amount_withdrawal: enc.amount_withdrawal,
+      external_hash: enc.external_hash,
       is_active: true,
       updated_at: now,
-    }))
+    }
+  })
 
   if (positionRows.length > 0) {
     try {
@@ -518,19 +583,26 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     } catch {
       continue
     }
-    const positionHash = makeHash("pluggy-inv", inv.id)
+    const positionHash = crypto.blindIndex(makeHash("pluggy-inv", inv.id))
     const positionId = positionIdByHash.get(positionHash) ?? null
-    const movementRows = invTxns.map(mapInvestmentTransaction).map((m) => ({
-      user_id: userId,
-      account_id: investAccountId,
-      position_id: positionId,
-      import_id: null,
-      date: m.date,
-      type: m.type,
-      description: m.description ?? null,
-      amount: String(m.amount),
-      external_hash: m.externalHash,
-    }))
+    const movementRows = invTxns.map(mapInvestmentTransaction).map((m) => {
+      const enc = encMovement(crypto, {
+        description: m.description ?? null,
+        amount: m.amount,
+        external_hash: m.externalHash,
+      })
+      return {
+        user_id: userId,
+        account_id: investAccountId,
+        position_id: positionId,
+        import_id: null,
+        date: m.date,
+        type: m.type,
+        description: enc.description,
+        amount: enc.amount,
+        external_hash: enc.external_hash,
+      }
+    })
     if (movementRows.length === 0) continue
     try {
       await db
@@ -559,11 +631,14 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     }
   }
 
-  const investTotal = positionRows.reduce((s, p) => {
-    if (p.amount_withdrawal != null && Number.isFinite(Number(p.amount_withdrawal))) {
-      return s + Number(p.amount_withdrawal)
+  const investTotal = mappedPositions.reduce((s, p) => {
+    if (
+      p.amountWithdrawal != null &&
+      Number.isFinite(Number(p.amountWithdrawal))
+    ) {
+      return s + Number(p.amountWithdrawal)
     }
-    return s + Number(p.quantity) * Number(p.current_price)
+    return s + Number(p.quantity) * Number(p.currentPrice)
   }, 0)
   try {
     await db
@@ -572,16 +647,18 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
         user_id: userId,
         account_id: investAccountId,
         source_type: "investment",
-        balance: String(investTotal),
-        pluggy_account_id: investPluggyId,
+        balance: crypto.encryptNum("balance", investTotal),
+        pluggy_account_id: crypto.encrypt("pluggy_account_id", investPluggyId),
+        pluggy_account_id_bidx: crypto.blindIndex(investPluggyId),
         updated_at: now,
       })
       .onConflictDoUpdate({
         target: [balanceSnapshots.user_id, balanceSnapshots.account_id],
         set: {
           source_type: "investment",
-          balance: String(investTotal),
-          pluggy_account_id: investPluggyId,
+          balance: crypto.encryptNum("balance", investTotal),
+          pluggy_account_id: crypto.encrypt("pluggy_account_id", investPluggyId),
+          pluggy_account_id_bidx: crypto.blindIndex(investPluggyId),
           updated_at: now,
         },
       })

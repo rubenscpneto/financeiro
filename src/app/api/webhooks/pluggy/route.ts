@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server"
-import { getItemId } from "@/lib/pluggy/client"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
+import { resolvePluggyItemId } from "@/lib/pluggy/item-store"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -45,9 +46,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ignored: event ?? "unknown" })
   }
 
+  const userId = process.env.PLUGGY_SYNC_USER_ID
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Missing PLUGGY_SYNC_USER_ID" },
+      { status: 500 }
+    )
+  }
+
   let expectedItemId: string
   try {
-    expectedItemId = getItemId()
+    const crypto = await getOrCreateUserCrypto(userId)
+    expectedItemId = await resolvePluggyItemId(crypto)
   } catch {
     return NextResponse.json(
       { error: "Missing PLUGGY_ITEM_ID" },
@@ -60,14 +70,6 @@ export async function POST(req: Request) {
       ok: true,
       ignored: "itemId mismatch",
     })
-  }
-
-  const userId = process.env.PLUGGY_SYNC_USER_ID
-  if (!userId) {
-    return NextResponse.json(
-      { error: "Missing PLUGGY_SYNC_USER_ID" },
-      { status: 500 }
-    )
   }
 
   after(async () => {
