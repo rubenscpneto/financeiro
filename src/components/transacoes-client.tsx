@@ -195,6 +195,11 @@ export function TransacoesClient({
           </label>
           <label className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1 text-sm text-ds-muted">
             Período
+            {yearMonth ? (
+              <span className="text-sm font-medium text-ds-ink">
+                {monthLabelPt(yearMonth)}
+              </span>
+            ) : null}
             <Input
               type="month"
               value={yearMonth ?? ""}

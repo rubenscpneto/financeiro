@@ -53,7 +53,9 @@ export function OrcamentosClient({
         >
           <FieldGroup className="md:grid md:grid-cols-4 md:items-end">
             <Field>
-              <FieldLabel htmlFor="year_month">Mês</FieldLabel>
+              <FieldLabel htmlFor="year_month">
+                Mês{yearMonth ? ` · ${monthLabelPt(yearMonth)}` : ""}
+              </FieldLabel>
               <Input
                 id="year_month"
                 name="year_month"

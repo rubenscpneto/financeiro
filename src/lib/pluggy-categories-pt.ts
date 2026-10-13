@@ -69,6 +69,21 @@ const CATEGORY_PT: Record<string, string> = {
   "phone": "Telefonia",
   "internet": "Internet",
   "cash": "Dinheiro",
+  "leisure": "Lazer",
+  "wellbeing": "Bem-estar",
+  "wellness": "Bem-estar",
+  "electronics": "Eletrônicos",
+  "clothing": "Vestuário",
+  "clothes": "Vestuário",
+  "apparel": "Vestuário",
+  "beauty": "Beleza",
+  "sports": "Esporte",
+  "games": "Jogos",
+  "streaming": "Streaming",
+  "alcohol": "Bebidas",
+  "finances": "Finanças",
+  "business": "Negócios",
+  "government": "Governo",
 }
 
 function normalizeKey(value: string) {

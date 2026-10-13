@@ -95,7 +95,7 @@ export function BankFilter({
     <div
       role="group"
       aria-label="Banco"
-      className="inline-flex min-w-0 max-w-full items-center gap-1.5 overflow-x-auto lg:max-w-[200px]"
+      className="inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 overflow-x-auto"
     >
       <ChipButton active={!current} onClick={() => go(null)}>
         Todos

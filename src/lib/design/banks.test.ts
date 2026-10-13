@@ -149,6 +149,8 @@ test("filtered own-account transfer stays internal with Saiu/Veio labels", () =>
 
 test("Accommodation maps to Hospedagem", () => {
   assert.equal(categoryLabelPt("Accommodation"), "Hospedagem")
+  assert.equal(categoryLabelPt("Electronics"), "Eletrônicos")
+  assert.equal(categoryLabelPt("Clothing"), "Vestuário")
 })
 
 test("month labels are 'Outubro de 2026'", () => {
