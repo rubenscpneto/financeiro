@@ -1,0 +1,81 @@
+name: Design screenshots
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run build
+
+      - name: Capture /design screenshots
+        run: npm run test:screenshots
+        env:
+          CI: "true"
+          ALLOW_DESIGN_GALLERY: "true"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-screenshots
+          path: design/screenshots/*.png
+
+      - name: Commit screenshots
+        id: commit
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(design): update /design screenshots [skip ci]"
+          file_pattern: design/screenshots/*.png
+
+      - name: Comment screenshots on PR
+        uses: actions/github-script@v7
+        env:
+          SCREENSHOT_SHA: ${{ steps.commit.outputs.commit_hash || github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const dir = 'design/screenshots';
+            if (!fs.existsSync(dir)) return;
+            const files = fs.readdirSync(dir).filter((f) => f.endsWith('.png')).sort();
+            if (!files.length) return;
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request.number;
+            const sha = process.env.SCREENSHOT_SHA;
+            const body = [
+              '<!-- design-screenshots -->',
+              '## Design screenshots',
+              '',
+              'Início + Configurações × claro/escuro × 390/1440.',
+              '',
+              ...files.map((f) => {
+                const url = `https://github.com/${owner}/${repo}/blob/${sha}/design/screenshots/${f}?raw=true`;
+                return `### ${f}\n\n![${f}](${url})`;
+              }),
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number: pr,
+            });
+            const prev = comments.find((c) => c.body && c.body.includes('<!-- design-screenshots -->'));
+            if (prev) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: prev.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: pr, body });
+            }

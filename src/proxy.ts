@@ -1,8 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
+import { isDesignGalleryPublic } from "@/lib/design/gallery-access"
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
+  if (path.startsWith("/design") && isDesignGalleryPublic(process.env)) {
+    return NextResponse.next()
+  }
+
   const isPublicApi =
     path.startsWith("/api/cron/") ||
     path.startsWith("/api/webhooks/") ||
