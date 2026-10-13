@@ -3,19 +3,29 @@
 import { useEffect, useRef } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { BankGroup } from "@/lib/banks"
-import {
-  BANK_FILTER_COOKIE,
-  parseBankCookie,
-  serializeBankCookie,
-} from "@/lib/banks"
+import { BANK_FILTER_STORAGE_KEY, hideBankFilter } from "@/lib/banks"
 import { cn } from "@/lib/utils"
 
-function readDocumentCookie(): string | null {
-  if (typeof document === "undefined") return null
-  const parts = document.cookie.split("; ")
-  const row = parts.find((p) => p.startsWith(`${BANK_FILTER_COOKIE}=`))
-  if (!row) return null
-  return parseBankCookie(decodeURIComponent(row.slice(BANK_FILTER_COOKIE.length + 1)))
+function clearLegacyCookie() {
+  if (typeof document === "undefined") return
+  document.cookie = `${BANK_FILTER_STORAGE_KEY}=; Path=/; Max-Age=0; SameSite=Lax`
+}
+
+function readSessionBank(): string {
+  try {
+    return sessionStorage.getItem(BANK_FILTER_STORAGE_KEY) ?? ""
+  } catch {
+    return ""
+  }
+}
+
+function writeSessionBank(next: string | null) {
+  try {
+    if (next) sessionStorage.setItem(BANK_FILTER_STORAGE_KEY, next)
+    else sessionStorage.removeItem(BANK_FILTER_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 function ChipButton({
@@ -53,17 +63,18 @@ export function BankFilter({
   const params = useSearchParams()
   const current = params.get("bank") ?? ""
   const restored = useRef(false)
-  const hidden = banks.length < 2
+  const hidden = hideBankFilter(pathname, banks.length)
 
   useEffect(() => {
+    clearLegacyCookie()
     if (hidden || restored.current) return
     restored.current = true
     const urlBank = params.get("bank")
     if (urlBank) {
-      document.cookie = serializeBankCookie(urlBank)
+      writeSessionBank(urlBank)
       return
     }
-    const stored = readDocumentCookie()
+    const stored = readSessionBank()
     if (stored && banks.some((b) => b.key === stored)) {
       const q = new URLSearchParams(params.toString())
       q.set("bank", stored)
@@ -79,7 +90,7 @@ export function BankFilter({
     q.delete("account_id")
     if (next) q.set("bank", next)
     else q.delete("bank")
-    document.cookie = serializeBankCookie(next)
+    writeSessionBank(next)
     const qs = q.toString()
     router.push(qs ? `${pathname}?${qs}` : pathname)
   }

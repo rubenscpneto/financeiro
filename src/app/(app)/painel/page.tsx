@@ -20,6 +20,7 @@ import {
   accountIdsForBank,
   applyOwnBankTransfers,
   balanceIdsForBank,
+  bankFromParams,
   bankHeadlineSuffix,
   dedupeTransactions,
   filterByAccountIds,
@@ -28,7 +29,6 @@ import {
 } from "@/lib/banks"
 import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
-import { requestBankKey } from "@/lib/bank-filter-request"
 import type { Account } from "@/lib/types"
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000"
@@ -41,7 +41,7 @@ export default async function PainelPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
-  const bank = await requestBankKey(params.bank)
+  const bank = bankFromParams(params.bank)
   const yearMonth = currentYearMonth()
   const { start, end } = monthBounds(yearMonth)
 

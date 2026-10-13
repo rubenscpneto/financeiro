@@ -17,12 +17,12 @@ import { FaturaClient } from "@/components/fatura-client"
 import {
   accountIdsForBank,
   balanceIdsForBank,
+  bankFromParams,
   dedupeTransactions,
   groupAccountsByBank,
   primaryAccountIds,
   resolveBank,
 } from "@/lib/banks"
-import { requestBankKey } from "@/lib/bank-filter-request"
 
 export default async function FaturaPage({
   searchParams,
@@ -32,7 +32,7 @@ export default async function FaturaPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
-  const bank = await requestBankKey(params.bank)
+  const bank = bankFromParams(params.bank)
   const asOf = todayYmd()
 
   const [accountRows, snapRows, txnRows] = await Promise.all([

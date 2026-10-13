@@ -10,11 +10,11 @@ import { loadUserSettings } from "@/lib/user-settings"
 import { AssinaturasClient } from "@/components/assinaturas-client"
 import {
   accountIdsForBank,
+  bankFromParams,
   dedupeTransactions,
   groupAccountsByBank,
   primaryAccountIds,
 } from "@/lib/banks"
-import { requestBankKey } from "@/lib/bank-filter-request"
 
 export default async function AssinaturasPage({
   searchParams,
@@ -26,7 +26,7 @@ export default async function AssinaturasPage({
   const asOf = todayYmd()
   const settings = await loadUserSettings(crypto)
   const params = await searchParams
-  const bank = await requestBankKey(params.bank)
+  const bank = bankFromParams(params.bank)
 
   const [accountRows, txnRows] = await Promise.all([
     db

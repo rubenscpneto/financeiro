@@ -4,12 +4,13 @@ import {
   accountIdsForBank,
   applyOwnBankTransfers,
   bankFromParams,
+  bankHeadlineSuffix,
   dedupeTransactions,
+  filterByAccountIds,
   groupAccountsByBank,
-  parseBankCookie,
+  hideBankFilter,
   pickBalanceAccountIds,
   resolveBank,
-  serializeBankCookie,
 } from "../banks.ts"
 import { decorateTransactions } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
@@ -145,9 +146,15 @@ test("filtered own-account transfer stays internal with Saiu/Veio labels", () =>
   const out = labeled.find((r) => r.id === "out")!
   assert.equal(out.class.isExpense, false)
   assert.equal(out.class.isIncome, false)
+  assert.equal(out.class.expenseDelta, 0)
+  assert.equal(out.class.incomeDelta, 0)
   assert.equal(out.class.displayLabel, "Saiu pro Nubank")
   const inn = labeled.find((r) => r.id === "in")!
   assert.equal(inn.class.displayLabel, "Veio do C6")
+  const scoped = filterByAccountIds(labeled, ["c6-acc"])
+  assert.equal(scoped.length, 1)
+  assert.equal(scoped[0].class.displayLabel, "Saiu pro Nubank")
+  assert.equal(scoped[0].class.isExpense, false)
 })
 
 test("Accommodation maps to Hospedagem", () => {
@@ -160,13 +167,30 @@ test("month labels are 'Outubro de 2026'", () => {
   assert.equal(monthLabelPt("2026-10"), "Outubro de 2026")
 })
 
-test("bank filter URL wins; cookie fills in; empty is Todos", () => {
-  assert.equal(bankFromParams("c6", "nubank"), "c6")
-  assert.equal(bankFromParams(undefined, "c6"), "c6")
-  assert.equal(bankFromParams("", "c6"), "c6")
-  assert.equal(bankFromParams(undefined, undefined), null)
-  assert.equal(parseBankCookie("todos"), null)
-  assert.equal(parseBankCookie(""), null)
-  assert.match(serializeBankCookie("c6"), /financeiro-bank=c6/)
-  assert.match(serializeBankCookie(null), /Max-Age=0/)
+test("bank filter URL is the only server source; empty is Todos", () => {
+  assert.equal(bankFromParams("c6"), "c6")
+  assert.equal(bankFromParams("todos"), null)
+  assert.equal(bankFromParams(""), null)
+  assert.equal(bankFromParams(undefined), null)
+})
+
+test("bank chips hide on Orçamentos and Metas and when only one bank", () => {
+  assert.equal(hideBankFilter("/orcamentos", 3), true)
+  assert.equal(hideBankFilter("/orcamentos/2026-10", 3), true)
+  assert.equal(hideBankFilter("/metas", 3), true)
+  assert.equal(hideBankFilter("/painel", 3), false)
+  assert.equal(hideBankFilter("/transacoes", 2), false)
+  assert.equal(hideBankFilter("/painel", 1), true)
+})
+
+test("headline suffix is ' no C6'", () => {
+  const groups = groupAccountsByBank([
+    {
+      id: "a",
+      institution: "C6",
+      extra_meta: JSON.stringify({ transferNumber: "336/0001/1" }),
+    },
+  ])
+  assert.equal(bankHeadlineSuffix(groups, "c6"), " no C6")
+  assert.equal(bankHeadlineSuffix(groups, null), "")
 })

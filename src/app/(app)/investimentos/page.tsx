@@ -14,6 +14,7 @@ import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
 import {
   accountIdsForBank,
   balanceIdsForBank,
+  bankFromParams,
   bankHeadlineSuffix,
   groupAccountsByBank,
 } from "@/lib/banks"
@@ -28,7 +29,6 @@ import { parseAccountMeta } from "@/lib/account-meta"
 import { buildReserve, recurringMonthlySpend } from "@/lib/reserve"
 import { roundCents } from "@/lib/money-math"
 import { InvestimentosClient } from "@/components/investimentos-client"
-import { requestBankKey } from "@/lib/bank-filter-request"
 import type { ClassifiableTxn as Txn } from "@/lib/txn-class"
 
 export default async function InvestimentosPage({
@@ -39,7 +39,7 @@ export default async function InvestimentosPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
-  const bank = await requestBankKey(params.bank)
+  const bank = bankFromParams(params.bank)
   const asOf = todayYmd()
   const ym = currentYearMonth()
   const monthStart = monthBounds(ym).start

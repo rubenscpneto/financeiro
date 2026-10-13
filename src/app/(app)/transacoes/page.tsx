@@ -11,13 +11,13 @@ import {
   accountBankById,
   accountIdsForBank,
   applyOwnBankTransfers,
+  bankFromParams,
   dedupeTransactions,
   filterByAccountIds,
   groupAccountsByBank,
   primaryAccountIds,
 } from "@/lib/banks"
 import { decorateTransactions } from "@/lib/txn-class"
-import { requestBankKey } from "@/lib/bank-filter-request"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import { groupLoans, type AdjustmentRow } from "@/lib/loans"
 import type { Category, Transaction } from "@/lib/types"
@@ -30,7 +30,7 @@ export default async function TransacoesPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
-  const bank = await requestBankKey(params.bank)
+  const bank = bankFromParams(params.bank)
 
   const hasCustomRange = Boolean(params.from || params.to)
   const yearMonth = !hasCustomRange ? params.mes || currentYearMonth() : null

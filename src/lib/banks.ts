@@ -423,29 +423,21 @@ export function applyOwnBankTransfers<T extends ClassifiableTxn>(
   })
 }
 
-export const BANK_FILTER_COOKIE = "financeiro-bank"
-export const BANK_FILTER_STORAGE_KEY = BANK_FILTER_COOKIE
+export const BANK_FILTER_STORAGE_KEY = "financeiro-bank"
 
-export function parseBankCookie(raw: string | null | undefined): string | null {
-  const v = (raw ?? "").trim()
+const HIDE_BANK_FILTER_PREFIXES = ["/orcamentos", "/metas"]
+
+export function bankFromParams(param: string | null | undefined): string | null {
+  const v = (param ?? "").trim()
   if (!v || v.toLowerCase() === "todos") return null
   return v
 }
 
-export function bankFromParams(
-  param: string | null | undefined,
-  cookie: string | null | undefined
-): string | null {
-  const fromUrl = (param ?? "").trim()
-  if (fromUrl) return fromUrl
-  return parseBankCookie(cookie)
-}
-
-export function serializeBankCookie(key: string | null): string {
-  if (!key) {
-    return `${BANK_FILTER_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
-  }
-  return `${BANK_FILTER_COOKIE}=${encodeURIComponent(key)}; Path=/; Max-Age=31536000; SameSite=Lax`
+export function hideBankFilter(pathname: string, bankCount: number): boolean {
+  if (bankCount < 2) return true
+  return HIDE_BANK_FILTER_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  )
 }
 
 export function primaryAccountIds(groups: BankGroup[]): Set<string> {
