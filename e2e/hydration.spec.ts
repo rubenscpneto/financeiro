@@ -86,21 +86,24 @@ async function assertAuthedPathsClean(page: Page, errors: string[]) {
           const label = page.getByText(/^vence \d{2}\/\d{2}$/)
           await expect(label).toBeVisible()
           vence.push((await label.textContent()) ?? "")
-          const banner = page.getByText(/^Fatura vence em \d{2}\/\d{2}/)
-          if (await banner.count()) {
-            banners.push((await banner.textContent()) ?? "")
-          }
+          const banner = page.getByText(
+            /^Fatura vence( em \d{2}\/\d{2}|u há )/
+          )
+          await expect(banner).toBeVisible()
+          banners.push((await banner.textContent()) ?? "")
         }
         expect(
           new Set(vence).size,
           `vence label should follow the selected cycle tab, got ${vence.join(", ")}`
         ).toBe(tabCount)
-        if (banners.length === tabCount) {
-          expect(
-            new Set(banners).size,
-            `orange banner should follow the selected cycle tab, got ${banners.join(", ")}`
-          ).toBe(tabCount)
-        }
+        expect(
+          banners.length,
+          `orange banner should render on every cycle tab, got ${banners.join(", ")}`
+        ).toBe(tabCount)
+        expect(
+          new Set(banners).size,
+          `orange banner should follow the selected cycle tab, got ${banners.join(", ")}`
+        ).toBe(tabCount)
       }
     }
   }

@@ -135,7 +135,7 @@ export function AppShell({
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { hidden, toggle } = useHideValues()
+  const { toggle } = useHideValues()
   const { setTheme } = useTheme()
   const [moreOpen, setMoreOpen] = useState(false)
   const greet = pathname === "/painel"
@@ -247,7 +247,7 @@ export function AppShell({
               </Suspense>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <EyeButton hidden={hidden} onClick={toggle} />
+              <EyeButton onClick={toggle} />
               <button
                 type="button"
                 onClick={toggleTheme}

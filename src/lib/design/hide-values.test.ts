@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  eyeButtonMode,
   hideValuesFromSearchParam,
   hiddenForHydration,
   hiddenFromStorageValue,
@@ -37,5 +38,16 @@ describe("hiddenForHydration", () => {
     assert.equal(hiddenForHydration({ stored: "0", hydrated: true }), false)
     assert.equal(hiddenForHydration({ stored: "1", hydrated: true }), true)
     assert.equal(hiddenForHydration({ stored: null, hydrated: true }), true)
+  })
+})
+
+describe("eyeButtonMode", () => {
+  it("uses CSS dual-render when hidden is omitted so AppShell can hydrate against localStorage", () => {
+    assert.equal(eyeButtonMode(undefined), "css")
+  })
+
+  it("honors an explicit hidden prop for the /design gallery", () => {
+    assert.equal(eyeButtonMode(true), "mostrar")
+    assert.equal(eyeButtonMode(false), "esconder")
   })
 })

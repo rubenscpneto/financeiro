@@ -21,3 +21,11 @@ export function hiddenForHydration(opts: {
   if (!opts.hydrated) return true
   return hiddenFromStorageValue(opts.stored)
 }
+
+/** App shell omits `hidden` (CSS vs localStorage). /design passes a boolean. */
+export function eyeButtonMode(
+  hidden?: boolean
+): "css" | "mostrar" | "esconder" {
+  if (hidden === undefined) return "css"
+  return hidden ? "mostrar" : "esconder"
+}
