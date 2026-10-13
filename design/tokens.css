@@ -37,6 +37,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --ds-bg: #0b0b0c;
   --ds-surface: #161618;
   --ds-elevated: #1c1c1f;
