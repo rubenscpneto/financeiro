@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm"
 import { db } from "@/db"
 import { profiles } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { AppShell } from "@/components/app-shell"
 
 export default async function AppLayout({
@@ -10,6 +11,7 @@ export default async function AppLayout({
   children: React.ReactNode
 }) {
   const { userId, user } = await requireUserOrRedirect()
+  const crypto = await getOrCreateUserCrypto(userId)
 
   const [profile] = await db
     .select({ nome: profiles.nome })
@@ -17,7 +19,8 @@ export default async function AppLayout({
     .where(eq(profiles.id, userId))
     .limit(1)
 
-  const label = profile?.nome || user.email || "Usuário"
+  const nome = crypto.decryptFlex("nome", profile?.nome ?? null)
+  const label = nome || user.email || "Usuário"
 
   return <AppShell userLabel={label}>{children}</AppShell>
 }

@@ -11,6 +11,7 @@ import {
   transactions,
 } from "@/db/schema"
 import { requireUser } from "@/lib/auth-session"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { assertCategoryOwned } from "@/lib/ownership"
 
 export type ActionResult = { ok?: true; error?: string }
@@ -61,6 +62,7 @@ export async function deleteCategoryAction(
 
 export async function createRuleAction(formData: FormData): Promise<ActionResult> {
   const { userId } = await requireUser()
+  const crypto = await getOrCreateUserCrypto(userId)
   const match_pattern = String(formData.get("match_pattern") ?? "").trim()
   const category_id = String(formData.get("category_id") ?? "")
   const priority = Number(formData.get("priority") ?? 100)
@@ -81,7 +83,7 @@ export async function createRuleAction(formData: FormData): Promise<ActionResult
   try {
     await db.insert(categoryRules).values({
       user_id: userId,
-      match_pattern,
+      match_pattern: crypto.encrypt("match_pattern", match_pattern),
       category_id,
       priority,
       account_type,
@@ -134,6 +136,7 @@ export async function upsertBudgetAction(
   formData: FormData
 ): Promise<ActionResult> {
   const { userId } = await requireUser()
+  const crypto = await getOrCreateUserCrypto(userId)
   const category_id = String(formData.get("category_id") ?? "")
   const year_month = String(formData.get("year_month") ?? "")
   const limit_amount = Number(
@@ -154,13 +157,13 @@ export async function upsertBudgetAction(
         user_id: userId,
         category_id,
         year_month,
-        limit_amount: String(limit_amount),
+        limit_amount: crypto.encryptNum("limit_amount", limit_amount),
         updated_at: new Date(),
       })
       .onConflictDoUpdate({
         target: [budgets.user_id, budgets.category_id, budgets.year_month],
         set: {
-          limit_amount: String(limit_amount),
+          limit_amount: crypto.encryptNum("limit_amount", limit_amount),
           updated_at: new Date(),
         },
       })
@@ -186,6 +189,7 @@ export async function deleteBudgetAction(
 
 export async function createGoalAction(formData: FormData): Promise<ActionResult> {
   const { userId } = await requireUser()
+  const crypto = await getOrCreateUserCrypto(userId)
   const name = String(formData.get("name") ?? "").trim()
   const target_amount = Number(
     String(formData.get("target_amount") ?? "").replace(",", ".")
@@ -200,9 +204,9 @@ export async function createGoalAction(formData: FormData): Promise<ActionResult
   try {
     await db.insert(goals).values({
       user_id: userId,
-      name,
-      target_amount: String(target_amount),
-      current_amount: String(current_amount),
+      name: crypto.encrypt("name", name),
+      target_amount: crypto.encryptNum("target_amount", target_amount),
+      current_amount: crypto.encryptNum("current_amount", current_amount),
       deadline,
     })
   } catch (error) {
@@ -215,6 +219,7 @@ export async function createGoalAction(formData: FormData): Promise<ActionResult
 
 export async function updateGoalAction(formData: FormData): Promise<ActionResult> {
   const { userId } = await requireUser()
+  const crypto = await getOrCreateUserCrypto(userId)
   const id = String(formData.get("id") ?? "")
   const current_amount = Number(
     String(formData.get("current_amount") ?? "0").replace(",", ".")
@@ -224,7 +229,7 @@ export async function updateGoalAction(formData: FormData): Promise<ActionResult
   await db
     .update(goals)
     .set({
-      current_amount: String(current_amount),
+      current_amount: crypto.encryptNum("current_amount", current_amount),
       is_archived,
       updated_at: new Date(),
     })
