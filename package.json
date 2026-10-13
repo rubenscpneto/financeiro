@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --test --experimental-strip-types src/lib/design/*.test.ts",
+    "test:screenshots": "playwright test",
     "db:migrate": "drizzle-kit migrate",
     "db:import-users": "tsx scripts/import-legacy-users.ts"
   },
