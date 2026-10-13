@@ -328,8 +328,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
       }
     }
 
-    const posted = rawTxns.filter((t) => t.status !== "PENDING")
-    const parsed: ParsedTransaction[] = posted.map((t) =>
+    const parsed: ParsedTransaction[] = rawTxns.map((t) =>
       mapTransaction(t, sourceType)
     )
     if (parsed.length === 0) continue
@@ -377,6 +376,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
         amount: t.amount,
         merchant: t.merchant ?? null,
         installment: t.installment ?? null,
+        notes: t.pending ? "pending" : null,
         source_category: t.sourceCategory ?? null,
         external_hash: t.externalHash,
       })
@@ -393,6 +393,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
           null,
         merchant: enc.merchant,
         installment: enc.installment,
+        notes: enc.notes,
         external_hash: enc.external_hash,
         source_category: enc.source_category,
         source_type: sourceType,
@@ -415,6 +416,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
             category_id: sql`excluded.category_id`,
             merchant: sql`excluded.merchant`,
             installment: sql`excluded.installment`,
+            notes: sql`excluded.notes`,
             source_category: sql`excluded.source_category`,
             source_type: sql`excluded.source_type`,
             is_transfer: sql`excluded.is_transfer`,

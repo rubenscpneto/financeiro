@@ -5,7 +5,7 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { OrcamentosClient } from "@/components/orcamentos-client"
 import { currentYearMonth, monthBounds } from "@/lib/format"
-import { classifyTransaction } from "@/lib/txn-class"
+import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Budget, Category } from "@/lib/types"
 
@@ -39,11 +39,16 @@ export default async function OrcamentosPage({
     db
       .select({
         category_id: transactions.category_id,
+        account_id: transactions.account_id,
+        date: transactions.date,
         amount: transactions.amount,
         is_transfer: transactions.is_transfer,
         source_type: transactions.source_type,
         source_category: transactions.source_category,
         description: transactions.description,
+        merchant: transactions.merchant,
+        installment: transactions.installment,
+        notes: transactions.notes,
       })
       .from(transactions)
       .where(
@@ -56,22 +61,30 @@ export default async function OrcamentosPage({
   ])
 
   const catById = new Map(categoryRows.map((c) => [c.id, c.name]))
-  const spentByCat = new Map<string, number>()
-  for (const t of txns) {
-    if (!t.category_id) continue
-    const amt = crypto.decryptNum("amount", t.amount)
-    const cls = classifyTransaction({
-      amount: amt,
-      description: crypto.decryptFlex("description", t.description),
+  const decorated = decorateTransactions(
+    txns.map((t) => ({
+      category_id: t.category_id,
+      account_id: t.account_id,
+      date: t.date,
+      amount: crypto.decryptNum("amount", t.amount),
+      is_transfer: t.is_transfer,
       source_type: t.source_type,
       source_category: crypto.decryptFlex("source_category", t.source_category),
-      category_name: catById.get(t.category_id),
-      is_transfer: t.is_transfer,
-    })
-    if (!cls.isExpense) continue
+      description: crypto.decryptFlex("description", t.description),
+      merchant: crypto.decryptFlex("merchant", t.merchant),
+      installment: crypto.decryptFlex("installment", t.installment),
+      notes: crypto.decryptFlex("notes", t.notes),
+      category_name: t.category_id ? catById.get(t.category_id) : null,
+    })),
+    { yearMonth }
+  )
+  const spentByCat = new Map<string, number>()
+  for (const t of decorated) {
+    if (!t.category_id || t.class.hide || !t.class.countInCategory) continue
+    if (!t.class.expenseDelta) continue
     spentByCat.set(
       t.category_id,
-      (spentByCat.get(t.category_id) ?? 0) + Math.abs(amt)
+      (spentByCat.get(t.category_id) ?? 0) + t.class.expenseDelta
     )
   }
 

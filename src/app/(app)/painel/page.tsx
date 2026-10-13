@@ -18,7 +18,7 @@ import { BankFilter } from "@/components/bank-filter"
 import { currentYearMonth, monthBounds } from "@/lib/format"
 import { positionCurrentValue } from "@/lib/investments/value"
 import { accountIdsForBank, groupAccountsByBank } from "@/lib/banks"
-import { classifyTransaction } from "@/lib/txn-class"
+import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Account } from "@/lib/types"
 
@@ -90,6 +90,9 @@ export default async function PainelPage({
         source_type: transactions.source_type,
         source_category: transactions.source_category,
         description: transactions.description,
+        merchant: transactions.merchant,
+        installment: transactions.installment,
+        notes: transactions.notes,
       })
       .from(transactions)
       .where(and(...txnFilters)),
@@ -194,38 +197,48 @@ export default async function PainelPage({
   const investBalance = hasInvestSnap ? (investSnap as number) : investments
   const netWorth = checking - creditLiability + investBalance
 
+  const catName = new Map(categoryRows.map((c) => [c.id, c]))
+  const decorated = decorateTransactions(
+    txns.map((t) => ({
+      date: t.date,
+      amount: crypto.decryptNum("amount", t.amount),
+      category_id: t.category_id,
+      account_id: t.account_id,
+      is_transfer: t.is_transfer,
+      source_type: t.source_type,
+      source_category: crypto.decryptFlex("source_category", t.source_category),
+      description: crypto.decryptFlex("description", t.description),
+      merchant: crypto.decryptFlex("merchant", t.merchant),
+      installment: crypto.decryptFlex("installment", t.installment),
+      notes: crypto.decryptFlex("notes", t.notes),
+      category_name: t.category_id ? catName.get(t.category_id)?.name : null,
+    })),
+    { yearMonth }
+  )
+
   let income = 0
   let expense = 0
   const byDay = new Map<string, { entradas: number; saidas: number }>()
   const byCat = new Map<string, number>()
-  const catName = new Map(categoryRows.map((c) => [c.id, c]))
 
-  for (const t of txns) {
-    const amt = crypto.decryptNum("amount", t.amount)
-    const sourceCategory = crypto.decryptFlex("source_category", t.source_category)
-    const description = crypto.decryptFlex("description", t.description)
-    const cls = classifyTransaction({
-      amount: amt,
-      description,
-      source_type: t.source_type,
-      source_category: sourceCategory,
-      category_name: t.category_id
-        ? catName.get(t.category_id)?.name
-        : null,
-      is_transfer: t.is_transfer,
-    })
+  for (const t of decorated) {
+    const cls = t.class
     if (cls.hide) continue
-    const day = t.date.slice(8, 10)
+    const day = (t.date ?? "").slice(8, 10)
     const bucket = byDay.get(day) ?? { entradas: 0, saidas: 0 }
-    if (cls.isIncome) {
-      income += amt
-      bucket.entradas += amt
-    } else if (cls.isExpense) {
-      expense += Math.abs(amt)
-      bucket.saidas += Math.abs(amt)
-      if (t.category_id) {
-        byCat.set(t.category_id, (byCat.get(t.category_id) ?? 0) + Math.abs(amt))
-      }
+    if (cls.incomeDelta) {
+      income += cls.incomeDelta
+      bucket.entradas += cls.incomeDelta
+    }
+    if (cls.expenseDelta) {
+      expense += cls.expenseDelta
+      if (cls.expenseDelta > 0) bucket.saidas += cls.expenseDelta
+    }
+    if (cls.countInCategory && t.category_id && cls.expenseDelta) {
+      byCat.set(
+        t.category_id,
+        (byCat.get(t.category_id) ?? 0) + cls.expenseDelta
+      )
     }
     byDay.set(day, bucket)
   }
@@ -235,6 +248,7 @@ export default async function PainelPage({
     .map(([day, v]) => ({ day, ...v }))
 
   const topCategories = [...byCat.entries()]
+    .filter(([, value]) => value > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 6)
     .map(([id, value]) => ({
@@ -244,23 +258,12 @@ export default async function PainelPage({
     }))
 
   const spentByCat = new Map<string, number>()
-  for (const t of txns) {
-    if (!t.category_id) continue
-    const amt = crypto.decryptNum("amount", t.amount)
-    const sourceCategory = crypto.decryptFlex("source_category", t.source_category)
-    const description = crypto.decryptFlex("description", t.description)
-    const cls = classifyTransaction({
-      amount: amt,
-      description,
-      source_type: t.source_type,
-      source_category: sourceCategory,
-      category_name: catName.get(t.category_id)?.name,
-      is_transfer: t.is_transfer,
-    })
-    if (!cls.isExpense) continue
+  for (const t of decorated) {
+    if (!t.category_id || t.class.hide || !t.class.countInCategory) continue
+    if (!t.class.expenseDelta) continue
     spentByCat.set(
       t.category_id,
-      (spentByCat.get(t.category_id) ?? 0) + Math.abs(amt)
+      (spentByCat.get(t.category_id) ?? 0) + t.class.expenseDelta
     )
   }
 

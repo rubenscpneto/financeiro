@@ -9,6 +9,7 @@ export type ParsedTransaction = {
   installment?: string | null
   sourceCategory?: string | null
   isTransfer?: boolean
+  pending?: boolean
   externalHash: string
   confidence?: 'high' | 'medium' | 'low'
 }

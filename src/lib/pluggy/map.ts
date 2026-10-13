@@ -85,6 +85,7 @@ export function mapTransaction(
     installment,
     sourceCategory: txn.category ?? null,
     isTransfer: isTransferHeuristic(txn),
+    pending: txn.status === "PENDING",
     externalHash: makeHash("pluggy", txn.id),
     confidence: "high",
   }

@@ -23,6 +23,9 @@ type Row = Transaction & {
   categories?: { name: string } | null
   _displayLabel?: string | null
   _kind?: string
+  _pending?: boolean
+  _subLines?: { label: string; amount: number }[]
+  _installmentLabel?: string | null
 }
 
 function pushQuery(
@@ -214,14 +217,21 @@ export function TransacoesClient({
             t._kind === "investment_transfer" ||
             t._kind === "card_bill" ||
             t.is_transfer
+          const isRefund = t._kind === "refund"
           return (
             <div
               key={t.id}
               className="flex min-w-0 items-start gap-3.5 border-b border-ds-border py-3 last:border-0"
             >
               <IconBadge
-                name={amount > 0 ? "income" : "cart"}
-                tone={isTransfer ? "info" : amount > 0 ? "pos" : "neutral"}
+                name={isRefund || amount > 0 ? "income" : "cart"}
+                tone={
+                  isTransfer || isRefund
+                    ? "info"
+                    : amount > 0
+                      ? "pos"
+                      : "neutral"
+                }
               />
               <div className="min-w-0 flex-1 overflow-hidden">
                 <p className="truncate text-base font-medium text-ds-ink">
@@ -230,8 +240,34 @@ export function TransacoesClient({
                 <p className="truncate text-sm text-ds-muted">
                   {t.accounts?.name ?? "Conta"} · {formatDateBR(t.date)}
                 </p>
+                {t._subLines?.length ? (
+                  <div className="mt-1.5 flex flex-col gap-0.5">
+                    {t._subLines.map((line, i) => (
+                      <div
+                        key={`${t.id}-sub-${i}`}
+                        className="flex min-w-0 items-center justify-between gap-2 text-sm text-ds-muted"
+                      >
+                        <span className="truncate">{line.label}</span>
+                        {line.amount ? (
+                          <AppMoney
+                            value={line.amount}
+                            sign
+                            className="shrink-0 text-sm text-ds-muted"
+                          />
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-                  {t.installment ? <Flag>{t.installment}</Flag> : null}
+                  {t._pending ? (
+                    <span className="inline-flex items-center rounded-full bg-ds-warn-soft px-2.5 py-0.5 text-sm font-medium text-ds-warn">
+                      Pendente
+                    </span>
+                  ) : null}
+                  {t._installmentLabel || t.installment ? (
+                    <Flag>{t._installmentLabel ?? t.installment}</Flag>
+                  ) : null}
                   {t._kind === "card_bill" ? (
                     <span className="text-sm font-medium text-ds-info">
                       Fatura paga
@@ -239,6 +275,10 @@ export function TransacoesClient({
                   ) : t._kind === "loan" ? (
                     <span className="text-sm font-medium text-ds-info">
                       Empréstimos
+                    </span>
+                  ) : isRefund ? (
+                    <span className="text-sm font-medium text-ds-info">
+                      {t._displayLabel ?? "Estorno"}
                     </span>
                   ) : isTransfer ? (
                     <span className="text-sm font-medium text-ds-info">
@@ -273,7 +313,13 @@ export function TransacoesClient({
               <AppMoney
                 value={amount}
                 sign
-                className={`shrink-0 text-base font-semibold ${amount > 0 ? "text-ds-pos" : "text-ds-ink"}`}
+                className={`shrink-0 text-base font-semibold ${
+                  isRefund
+                    ? "text-ds-info"
+                    : amount > 0
+                      ? "text-ds-pos"
+                      : "text-ds-ink"
+                }`}
               />
             </div>
           )

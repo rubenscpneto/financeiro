@@ -8,7 +8,7 @@ import { decAccount, decTransaction } from "@/lib/crypto/rows"
 import { TransacoesClient } from "@/components/transacoes-client"
 import { currentYearMonth, monthBounds } from "@/lib/format"
 import { accountIdsForBank, groupAccountsByBank } from "@/lib/banks"
-import { classifyTransaction } from "@/lib/txn-class"
+import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Category, Transaction } from "@/lib/types"
 
@@ -77,34 +77,38 @@ export default async function TransacoesPage({
     .orderBy(desc(transactions.date), desc(transactions.id))
     .limit(1000)
 
-  const mapped = txnRows
-    .map((row) => {
+  const mapped = decorateTransactions(
+    txnRows.map((row) => {
       const txn = decTransaction(crypto, row.txn)
       const accountName = row.account_name
         ? crypto.decryptFlex("name", row.account_name)
         : null
-      const cls = classifyTransaction({
-        amount: txn.amount,
-        description: txn.description,
-        source_type: txn.source_type,
-        source_category: txn.source_category,
-        category_name: row.category_name,
-        is_transfer: txn.is_transfer,
-      })
       return {
         ...txn,
         accounts: accountName ? { name: accountName } : null,
-        categories: row.category_name
-          ? { name: categoryLabelPt(cls.categoryLabel ?? row.category_name) }
-          : cls.categoryLabel
-            ? { name: cls.categoryLabel }
-            : null,
-        _hide: cls.hide,
-        _displayLabel: cls.displayLabel,
-        _kind: cls.kind,
+        category_name: row.category_name,
       }
-    })
-    .filter((t) => !t._hide)
+    }),
+    { yearMonth, from, to }
+  )
+    .filter((t) => !t.class.hide)
+    .map((t) => ({
+      ...t,
+      categories: t.category_name
+        ? {
+            name: categoryLabelPt(
+              t.class.categoryLabel ?? t.category_name
+            ),
+          }
+        : t.class.categoryLabel
+          ? { name: t.class.categoryLabel }
+          : null,
+      _displayLabel: t.class.displayLabel,
+      _kind: t.class.kind,
+      _pending: t.class.pending,
+      _subLines: t.class.subLines,
+      _installmentLabel: t.class.installmentLabel,
+    }))
 
   const displayCategories = (categoryRows as Category[]).map((c) => ({
     ...c,
@@ -120,6 +124,9 @@ export default async function TransacoesPage({
             categories?: { name: string } | null
             _displayLabel?: string | null
             _kind?: string
+            _pending?: boolean
+            _subLines?: { label: string; amount: number }[]
+            _installmentLabel?: string | null
           })[]}
           banks={banks.map((b) => ({ key: b.key, name: b.name }))}
           categories={displayCategories}
