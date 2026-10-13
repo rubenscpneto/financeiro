@@ -612,7 +612,9 @@ export function decorateTransactions<T extends ClassifiableTxn>(
   return rows
 }
 
-export function sumSpending<T extends { class: TxnClass }>(rows: T[]): number {
+export function sumSpending<
+  T extends { class: Pick<TxnClass, "hide" | "expenseDelta"> },
+>(rows: T[]): number {
   return rows.reduce((s, t) => (t.class.hide ? s : s + t.class.expenseDelta), 0)
 }
 
@@ -666,7 +668,8 @@ export function matchesFlowFilter(
   if (t.class.hide) return false
   if (OWN_ACCOUNT_MOVE.has(t.class.kind)) return false
   if (flow === "out") {
-    return t.class.expenseDelta > 0 || (t.class.kind === "loan" && Number(t.amount) < 0)
+    if (t.class.kind === "loan") return false
+    return t.class.expenseDelta !== 0
   }
   return t.class.incomeDelta > 0
 }
@@ -693,6 +696,10 @@ export function spendCategoryId(t: {
   if (t.user_category_id) return t.user_category_id
   if (t.class?.categoryLabel === "A classificar") return null
   return t.category_id ?? null
+}
+
+export function showLoansBlock(categoryFilter: string): boolean {
+  return categoryFilter !== UNCLASSIFIED_FILTER
 }
 
 export function countsAsIncome(t: ClassifiableTxn) {

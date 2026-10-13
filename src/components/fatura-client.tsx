@@ -11,7 +11,12 @@ import {
 import { AppMoney } from "@/components/app-money"
 import { brl } from "@/components/design/money-display"
 import { useHideValues } from "@/components/hide-values-provider"
-import type { CardCycle, CycleItem } from "@/lib/card-cycles"
+import {
+  cycleTotals,
+  faturaHeaderTotal,
+  type CardCycle,
+  type CycleItem,
+} from "@/lib/card-cycles"
 import { cn } from "@/lib/utils"
 
 export function FaturaClient({
@@ -61,6 +66,12 @@ export function FaturaClient({
   const [tab, setTab] = useState(0)
   const current = cycles[tab] ?? cycles[0]
   const shownItems = tab === 0 ? items : future.find((f) => f.dueYm === current?.dueYm)?.items ?? []
+  const headerTotal = faturaHeaderTotal({
+    tab,
+    openBill: currentTotal,
+    items: shownItems,
+  })
+  const tabTotals = tab === 0 ? { aVista, parcelas } : cycleTotals(shownItems)
   const overdue = daysToDue != null && daysToDue < 0
   const soon = daysToDue != null && daysToDue <= 3 && daysToDue >= 0
 
@@ -146,7 +157,7 @@ export function FaturaClient({
         <DsCard>
           <p className="text-sm text-ds-muted">Fatura atual</p>
           <p className="text-xl font-semibold whitespace-nowrap">
-            <AppMoney value={currentTotal} />
+            <AppMoney value={headerTotal} />
           </p>
           <p className="text-sm text-ds-subtle">
             {dueDate ? `vence ${formatDateBR(dueDate).slice(0, 5)}` : "aberta"}
@@ -212,8 +223,8 @@ export function FaturaClient({
         ))}
         {tab === 0 ? (
           <div className="flex justify-between gap-3 border-t border-ds-border pt-3 text-sm">
-            <span>À vista {brl(aVista, hidden)}</span>
-            <span>Parcelas {brl(parcelas, hidden)}</span>
+            <span>À vista {brl(tabTotals.aVista, hidden)}</span>
+            <span>Parcelas {brl(tabTotals.parcelas, hidden)}</span>
           </div>
         ) : null}
       </DsCard>

@@ -187,6 +187,35 @@ export function reserveProgress(livre: number, target: number): number {
   return livre / target
 }
 
+export function irApplies(p: { name?: string | null }): boolean {
+  const name = (p.name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+  if (/come.?cotas/.test(name)) return false
+  if (/liquidez\s+diaria/.test(name)) return false
+  if (/\bfundos?\b/.test(name)) return false
+  return true
+}
+
+export function irBandTotals(
+  titles: { name?: string | null; days: number; ir: number }[]
+): { label: string; rate: string; ir: number }[] {
+  const bands = [
+    { label: "Até 180 dias", rate: "22,5%", ir: 0 },
+    { label: "181 a 360 dias", rate: "20%", ir: 0 },
+    { label: "361 a 720 dias", rate: "17,5%", ir: 0 },
+    { label: "Mais de 720 dias", rate: "15%", ir: 0 },
+  ]
+  for (const t of titles) {
+    if (!irApplies(t)) continue
+    const label = irBandLabel(t.days)
+    const band = bands.find((b) => b.label === label)
+    if (band) band.ir = roundCents(band.ir + t.ir)
+  }
+  return bands
+}
+
 export function irBandLabel(days: number): string {
   if (days <= 180) return "Até 180 dias"
   if (days <= 360) return "181 a 360 dias"

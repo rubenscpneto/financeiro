@@ -3,6 +3,7 @@ import test from "node:test"
 import {
   cycleForDate,
   cycleTotals,
+  faturaHeaderTotal,
   futureInstallments,
   itemsForCycle,
   type CardCycle,
@@ -74,8 +75,8 @@ test("October cycle shows parcela 2/3; future keeps only the remaining month", (
   assert.equal(future[0].items[0].installmentLabel, "Parcela 3 de 3")
 })
 
-test("Fatura atual equals the sum of the cycle lines, not the snapshot", () => {
-  const items = [
+test("Fatura atual on the open cycle matches Início open-bill; other tabs follow cycle lines", () => {
+  const openItems = [
     {
       id: "a",
       date: "2026-10-01",
@@ -89,23 +90,50 @@ test("Fatura atual equals the sum of the cycle lines, not the snapshot", () => {
       subLine: null,
       isRefunded: false,
     },
+  ]
+  const nextItems = [
     {
       id: "b",
-      date: "2026-10-02",
+      date: "2026-11-15",
       name: "Eletro",
       amount: -300,
       category: null,
-      installmentLabel: "Parcela 2 de 3",
-      installmentCurrent: 2,
+      installmentLabel: "Parcela 3 de 3",
+      installmentCurrent: 3,
       installmentTotal: 3,
       remainingAfter: 1,
       subLine: null,
       isRefunded: false,
     },
   ]
-  const snapshot = 1072.25
-  const totals = cycleTotals(items)
-  const header = totals.net
-  assert.equal(header, 380)
-  assert.notEqual(header, snapshot)
+  const openBill = 1072.25
+  assert.equal(faturaHeaderTotal({ tab: 0, openBill, items: openItems }), 1072.25)
+  assert.equal(faturaHeaderTotal({ tab: 1, openBill, items: nextItems }), 300)
+})
+
+test("future installments are sorted by date", () => {
+  const txns = decorateTransactions([
+    {
+      id: "late",
+      date: "2026-09-20",
+      account_id: "card",
+      description: "Loja B",
+      amount: -50,
+      installment: "1/3",
+      source_type: "credit_card",
+    },
+    {
+      id: "early",
+      date: "2026-09-10",
+      account_id: "card",
+      description: "Loja A",
+      amount: -80,
+      installment: "1/3",
+      source_type: "credit_card",
+    },
+  ])
+  const oct = cycleForDate("2026-10-13", 20, 27)
+  const future = futureInstallments(txns, "card", oct.dueYm, 20, 27)
+  const dates = future.flatMap((g) => g.items.map((i) => i.date))
+  assert.deepEqual(dates, [...dates].sort())
 })

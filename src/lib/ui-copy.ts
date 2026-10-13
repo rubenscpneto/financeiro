@@ -4,7 +4,7 @@ export const OPEN_FINANCE_CONNECTED = "Conectado"
 export const OPEN_FINANCE_RECONNECT = "Reconectar"
 
 export const EXTRATO_SUMMARY_NOTE =
-  "Estornos e cashback diminuem o gasto. Ficam de fora o pagamento da fatura, as aplicações e resgates no CDB e as transferências entre suas contas. Empréstimos vão para 'a receber'."
+  "Estornos e cashback diminuem o gasto. Ficam de fora o pagamento da fatura, as aplicações e resgates no CDB e as transferências entre suas contas. Empréstimos vão para \u201ca receber\u201d."
 
 export function openFinanceCopy({
   hasConnection,

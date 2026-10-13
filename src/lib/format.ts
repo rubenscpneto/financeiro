@@ -1,6 +1,8 @@
+export const SP_TZ = "America/Sao_Paulo"
+
 export function todayYmd(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
+    timeZone: SP_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -51,12 +53,17 @@ export function isoToBrShort(isoDate: string) {
   return `${d}/${m}`
 }
 
+export function calendarDate(iso: string) {
+  const day = iso.slice(0, 10)
+  return new Date(`${day}T12:00:00.000-03:00`)
+}
+
 export function monthLabelPt(yearMonth: string, style: "long" | "short" = "long") {
-  const [y, m] = yearMonth.split("-").map(Number)
   const label = new Intl.DateTimeFormat("pt-BR", {
     month: style,
     year: "numeric",
-  }).format(new Date(y, m - 1, 1))
+    timeZone: SP_TZ,
+  }).format(calendarDate(`${yearMonth}-01`))
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 

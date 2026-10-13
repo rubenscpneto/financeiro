@@ -8,12 +8,21 @@ import {
   UNCLASSIFIED_FILTER,
   displayCategoryLabel,
   matchesFlowFilter,
+  showLoansBlock,
   summarizeFlow,
+  sumSpending,
   type FlowFilter,
 } from "@/lib/txn-class"
 import { EXTRATO_SUMMARY_NOTE } from "@/lib/ui-copy"
 import type { Category, Transaction } from "@/lib/types"
-import { formatDateBR, monthLabelPt, shiftYearMonth } from "@/lib/format"
+import {
+  calendarDate,
+  formatDateBR,
+  monthLabelPt,
+  shiftYearMonth,
+  SP_TZ,
+  todayYmd,
+} from "@/lib/format"
 import {
   Chip,
   DsCard,
@@ -69,14 +78,12 @@ function pushQuery(
 const control = `${dsControlClass} w-full min-w-0 max-w-full`
 
 function dayHeading(iso: string) {
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date())
+  const today = todayYmd()
   const label = new Intl.DateTimeFormat("pt-BR", {
     day: "numeric",
     month: "long",
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(`${iso}T00:00:00`))
+    timeZone: SP_TZ,
+  }).format(calendarDate(iso))
   return iso === today ? `${label.toUpperCase()} · HOJE` : label.toUpperCase()
 }
 
@@ -161,6 +168,14 @@ export function TransacoesClient({
 
   const flowSummary = useMemo(() => {
     if (flow === "all") return summary
+    if (flow === "out") {
+      const saiu = sumSpending(
+        transactions.map((t) => ({
+          class: { hide: false, expenseDelta: t._expenseDelta ?? 0 },
+        }))
+      )
+      return { ...summary, entrou: 0, saiu, sobrou: -saiu }
+    }
     const sums = summarizeFlow(
       filtered.map((t) => ({
         class: {
@@ -171,7 +186,7 @@ export function TransacoesClient({
       }))
     )
     return { ...summary, ...sums }
-  }, [filtered, flow, summary])
+  }, [filtered, flow, summary, transactions])
 
   const groups = useMemo(() => {
     const map = new Map<string, Row[]>()
@@ -602,7 +617,8 @@ export function TransacoesClient({
           ))
         : null}
 
-      {loans.some((l) => l.remaining > 0 || l.writtenOff) ? (
+      {showLoansBlock(categoryId) &&
+      loans.some((l) => l.remaining > 0 || l.writtenOff) ? (
         <DsCard>
           <p className="text-sm font-semibold tracking-[0.06em] text-ds-subtle uppercase">
             Empréstimos

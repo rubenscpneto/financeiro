@@ -45,9 +45,10 @@ export function cycleForDate(
     dueYm,
     closeDate: ymd(close.y, close.m, closeDay),
     dueDate: ymd(due.y, due.m, dueDay),
-    label: new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(
-      new Date(due.y, due.m - 1, 1)
-    ),
+    label: new Intl.DateTimeFormat("pt-BR", {
+      month: "long",
+      timeZone: "America/Sao_Paulo",
+    }).format(new Date(`${due.y}-${pad(due.m)}-01T12:00:00.000-03:00`)),
   }
 }
 
@@ -76,6 +77,15 @@ export type CycleItem = {
   remainingAfter: number
   subLine: string | null
   isRefunded: boolean
+}
+
+export function faturaHeaderTotal(opts: {
+  tab: number
+  openBill: number
+  items: CycleItem[]
+}): number {
+  if (opts.tab === 0) return Math.abs(opts.openBill)
+  return cycleTotals(opts.items).net
 }
 
 export function cycleTotals(items: CycleItem[]): {
@@ -247,7 +257,12 @@ export function futureInstallments<T extends {
   }
   return [...byYm.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([dueYm, items]) => ({ dueYm, items }))
+    .map(([dueYm, items]) => ({
+      dueYm,
+      items: [...items].sort(
+        (a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name)
+      ),
+    }))
 }
 
 export function cardSchedule(meta: AccountExtraMeta | null) {

@@ -1,13 +1,14 @@
 import {
   cdiPeriodReturn,
   holdingDays,
-  irBandLabel,
   pctOfCdi,
   periodRendimento,
   roundCents,
   titleNet,
   weightedContractedCdi,
   isCdbLocked,
+  irApplies,
+  irBandTotals,
 } from "@/lib/money-math"
 import { positionCurrentValue, positionInvestedValue } from "@/lib/investments/value"
 import type { CdiRate } from "@/lib/cdi"
@@ -69,6 +70,7 @@ export function titledPosition(p: PositionLike, asOf: string): TitledPosition {
   const applied = p.purchase_date ?? p.as_of
   const days = holdingDays(applied, asOf)
   const net = titleNet(gross, invested, days)
+  const applies = irApplies({ name: p.asset_name })
   return {
     id: p.id,
     name: p.asset_name,
@@ -76,8 +78,8 @@ export function titledPosition(p: PositionLike, asOf: string): TitledPosition {
     gross,
     earnings: net.earnings,
     iof: net.iof,
-    ir: net.ir,
-    net: net.net,
+    ir: applies ? net.ir : 0,
+    net: applies ? net.net : roundCents(gross - net.iof),
     days,
     dueDate: p.due_date ?? null,
     purchaseDate: applied,
@@ -246,16 +248,9 @@ export function periodCdiKpi(
 }
 
 export function irBands(titles: TitledPosition[]) {
-  const bands = [
-    { label: "Até 180 dias", rate: "22,5%", gross: 0 },
-    { label: "181 a 360 dias", rate: "20%", gross: 0 },
-    { label: "361 a 720 dias", rate: "17,5%", gross: 0 },
-    { label: "Mais de 720 dias", rate: "15%", gross: 0 },
-  ]
-  for (const t of titles) {
-    const label = irBandLabel(t.days)
-    const band = bands.find((b) => b.label === label)
-    if (band) band.gross = roundCents(band.gross + t.gross)
-  }
-  return bands
+  return irBandTotals(titles).map((b) => ({
+    label: b.label,
+    rate: b.rate,
+    gross: b.ir,
+  }))
 }

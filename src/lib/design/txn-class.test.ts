@@ -9,6 +9,7 @@ import {
   isUnclassifiedRow,
   matchesCategoryFilter,
   matchesFlowFilter,
+  showLoansBlock,
   spendCategoryId,
   summarizeFlow,
   sumSpending,
@@ -555,4 +556,44 @@ test("Saídas excludes own-account transfers and summary follows the filter", ()
   const inSum = summarizeFlow(inn)
   assert.equal(inSum.entrou, 7500)
   assert.equal(inSum.saiu, 0)
+})
+
+test("Saídas summary nets refunds and excludes Empréstimos via sumSpending", () => {
+  const rows = decorateTransactions(
+    [
+      {
+        id: "food",
+        date: "2026-10-02",
+        description: "Padaria",
+        amount: -100,
+        source_type: "credit_card",
+        category_name: "Alimentação",
+      },
+      {
+        id: "back",
+        date: "2026-10-03",
+        description: "Cashback Padaria",
+        amount: 12.4,
+        source_type: "credit_card",
+      },
+      {
+        id: "loan",
+        date: "2026-10-04",
+        description: "Pix",
+        amount: -150,
+        source_type: "checking",
+        user_category_name: "Empréstimos",
+      },
+    ],
+    { yearMonth: "2026-10" }
+  )
+  assert.equal(sumSpending(rows), 87.6)
+  const out = rows.filter((t) => matchesFlowFilter(t, "out"))
+  assert.equal(out.some((t) => t.class.kind === "loan"), false)
+  assert.equal(sumSpending(out), sumSpending(rows))
+})
+
+test("Empréstimos block hides when A classificar filter is on", () => {
+  assert.equal(showLoansBlock(""), true)
+  assert.equal(showLoansBlock(UNCLASSIFIED_FILTER), false)
 })

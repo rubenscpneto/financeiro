@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { BankFilter } from "@/components/bank-filter"
 import { hrefWithBank, type BankGroup } from "@/lib/banks"
+import { SP_TZ } from "@/lib/format"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { DesignIcon, type DesignIconName } from "@/components/design/icons"
@@ -94,7 +95,7 @@ function todayLabel() {
     weekday: "long",
     day: "numeric",
     month: "long",
-    timeZone: "America/Sao_Paulo",
+    timeZone: SP_TZ,
   }).format(new Date())
   return raw.charAt(0).toLowerCase() + raw.slice(1)
 }

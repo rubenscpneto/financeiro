@@ -7,7 +7,9 @@ import {
   iofOnEarnings,
   iofRate,
   irOnEarnings,
+  irApplies,
   irBandLabel,
+  irBandTotals,
   irRate,
   isCdbLocked,
   pctOfCdi,
@@ -197,6 +199,23 @@ describe("reserva livre", () => {
     assert.equal(split.locked, 12000)
     assert.equal(split.excluded, 9500)
     assert.equal(reservaLivre(split.liquid + 2000, 400), 6900)
+  })
+
+  it("IR does not apply to daily-liquidity / come-cotas funds", () => {
+    assert.equal(irApplies({ name: "CDB prefixado 2031" }), true)
+    assert.equal(irApplies({ name: "CDB Liquidez diária" }), false)
+    assert.equal(irApplies({ name: "Fundo DI come-cotas" }), false)
+  })
+
+  it("IR bands use holding-period rate on IR, not whole gross, and skip funds", () => {
+    const bands = irBandTotals([
+      { name: "CDB 2031", days: 330, ir: 180.31 },
+      { name: "CDB curto", days: 90, ir: 10 },
+      { name: "CDB Liquidez diária", days: 200, ir: 50 },
+    ])
+    assert.equal(bands.find((b) => b.label === "Até 180 dias")?.ir, 10)
+    assert.equal(bands.find((b) => b.label === "181 a 360 dias")?.ir, 180.31)
+    assert.equal(bands.find((b) => b.label === "361 a 720 dias")?.ir, 0)
   })
 
   it("Preso includes locked and Fora-da-reserva nets", () => {

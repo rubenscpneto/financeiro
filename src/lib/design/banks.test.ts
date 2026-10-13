@@ -173,6 +173,10 @@ test("currentYearMonth uses America/Sao_Paulo like todayYmd", () => {
   assert.equal(currentYearMonth(), todayYmd().slice(0, 7))
 })
 
+test("month labels format calendar dates in America/Sao_Paulo", () => {
+  assert.equal(monthLabelPt("2026-10"), "Outubro de 2026")
+})
+
 test("bank filter URL is the only server source; empty is Todos", () => {
   assert.equal(bankFromParams("c6"), "c6")
   assert.equal(bankFromParams("todos"), null)
