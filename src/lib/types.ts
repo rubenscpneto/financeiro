@@ -95,6 +95,7 @@ export type Goal = {
   deadline: string | null
   color: string | null
   is_archived: boolean
+  created_at?: Date | string | null
 }
 
 export type InvestmentPosition = {

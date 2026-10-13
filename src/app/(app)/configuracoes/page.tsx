@@ -9,16 +9,7 @@ import { loadUserSettings } from "@/lib/user-settings"
 import { groupAccountsByBank } from "@/lib/banks"
 import { decAccount } from "@/lib/crypto/rows"
 import { ConfiguracoesClient } from "@/components/configuracoes-client"
-
-const STATUS_PT: Record<string, string> = {
-  UPDATED: "Conectado",
-  UPDATING: "Sincronizando",
-  LOGIN_ERROR: "Erro de login — reconecte no Meu Pluggy",
-  INVALID_CREDENTIALS: "Credenciais inválidas — reconecte",
-  WAITING_USER_INPUT: "Aguardando autenticação",
-  WAITING_USER_ACTION: "Aguardando ação no banco",
-  OUTDATED: "Desatualizado — reconecte no Meu Pluggy",
-}
+import { openFinanceCopy } from "@/lib/ui-copy"
 
 export default async function ConfiguracoesPage() {
   const { userId, user } = await requireUserOrRedirect()
@@ -41,35 +32,31 @@ export default async function ConfiguracoesPage() {
   let pluggy: {
     connected: boolean
     institution: string | null
-    statusLabel: string
-    detail: string | null
-  } = {
-    connected: false,
-    institution: null,
-    statusLabel: "Nenhuma conexão Open Finance",
-    detail: "Conecte suas contas no Meu Pluggy e sincronize.",
+    statusLabel: string | null
+    action: string
   }
-
   try {
     const itemId = await resolvePluggyItemId(crypto)
     const apiKey = await getApiKey()
     const item = await fetchItem(apiKey, itemId)
-    const ok = item.status === "UPDATED" || item.status === "UPDATING"
+    const copy = openFinanceCopy({
+      hasConnection: true,
+      status: item.status,
+      executionStatus: item.executionStatus,
+    })
     pluggy = {
-      connected: ok,
+      connected: true,
       institution: item.connector?.name ?? null,
-      statusLabel: STATUS_PT[item.status] ?? `Status: ${item.status}`,
-      detail: item.error?.message ?? item.executionStatus ?? null,
+      statusLabel: copy.statusLabel,
+      action: copy.action,
     }
-  } catch (error) {
+  } catch {
+    const copy = openFinanceCopy({ hasConnection: false })
     pluggy = {
       connected: false,
       institution: null,
-      statusLabel: "Open Finance indisponível",
-      detail:
-        error instanceof Error
-          ? error.message
-          : "Não foi possível consultar a conexão Pluggy.",
+      statusLabel: copy.statusLabel,
+      action: copy.action,
     }
   }
 

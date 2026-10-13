@@ -18,6 +18,7 @@ import { useHideValues } from "@/components/hide-values-provider"
 import { formatDateBR } from "@/lib/format"
 import type { ReserveView } from "@/lib/reserve"
 import { receivablesTotal, type LoanGroup } from "@/lib/loans"
+import { goalMonthlyPace, goalPaceCopy } from "@/lib/ui-copy"
 import {
   LoanActions,
   LoanOriginalLine,
@@ -25,24 +26,6 @@ import {
   UndoWriteOffButton,
   type LoanWriteOffTarget,
 } from "@/components/loan-writeoff"
-
-function monthsUntil(deadline: string | null) {
-  if (!deadline) return null
-  const now = new Date()
-  const [y, m] = deadline.split("-").map(Number)
-  return (y - now.getFullYear()) * 12 + (m - (now.getMonth() + 1))
-}
-
-function arriveLabel(falta: number, perMonth: number) {
-  if (perMonth <= 0) return "defina um valor por mês"
-  const months = Math.ceil(falta / perMonth)
-  const d = new Date()
-  d.setMonth(d.getMonth() + months)
-  return new Intl.DateTimeFormat("pt-BR", {
-    month: "short",
-    year: "numeric",
-  }).format(d)
-}
 
 export function MetasClient({
   goals,
@@ -144,11 +127,13 @@ export function MetasClient({
           const target = Number(g.target_amount)
           const current = Number(g.current_amount)
           const pct = target > 0 ? current / target : 0
-          const falta = Math.max(0, target - current)
-          const leftMonths = monthsUntil(g.deadline)
-          const perMonth =
-            leftMonths && leftMonths > 0 ? falta / leftMonths : falta / 3
-          const behind = leftMonths != null && leftMonths > 0 && current / target < 1 - leftMonths / 24
+          const pace = goalMonthlyPace({
+            current,
+            target,
+            deadline: g.deadline,
+            createdAt: g.created_at ?? null,
+          })
+          const behind = pace.savedPerMonth < pace.requiredPerMonth
           return (
             <DsCard key={g.id} className={g.is_archived ? "opacity-60" : undefined}>
               <div className="flex items-start justify-between gap-3">
@@ -171,13 +156,13 @@ export function MetasClient({
                 <span className="text-sm text-ds-muted"> de {brl(target, hidden)}</span>
               </p>
               <Bar pct={pct} tone={behind ? "warn" : "ok"} />
-              <p className="text-sm leading-5 text-ds-muted">
-                Faltam {brl(falta, hidden)}. Guardando {brl(perMonth, hidden)} por
-                mês, você chega lá em {arriveLabel(falta, perMonth)}.
-                {behind
-                  ? ` Para não atrasar, o ritmo precisa subir para ${brl(perMonth, hidden)}.`
-                  : ""}
-              </p>
+              {pct >= 1 ? null : (
+                <p className="text-sm leading-5 text-ds-muted">
+                  {goalPaceCopy(pace.savedPerMonth, pace.requiredPerMonth, (n) =>
+                    brl(n, hidden)
+                  )}
+                </p>
+              )}
               <form
                 className="flex flex-wrap items-end gap-2"
                 action={(fd) => {

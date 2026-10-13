@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { updateTransactionCategoryAction } from "@/lib/actions/crud"
 import { UNCLASSIFIED_FILTER } from "@/lib/txn-class"
+import { EXTRATO_SUMMARY_NOTE } from "@/lib/ui-copy"
 import type { Category, Transaction } from "@/lib/types"
 import { formatDateBR, monthLabelPt, shiftYearMonth } from "@/lib/format"
 import {
@@ -307,10 +308,7 @@ export function TransacoesClient({
           </div>
         </div>
         <p className="text-sm leading-5 text-ds-subtle">
-          Ficam fora dessa conta: a fatura paga de {brl(summary.cardBill, hidden)}{" "}
-          (as compras já foram contadas), {brl(Math.abs(summary.between), hidden)}{" "}
-          que só mudou entre suas contas e os empréstimos (saiu{" "}
-          {brl(summary.loanOut, hidden)}, voltou {brl(summary.loanIn, hidden)}).
+          {EXTRATO_SUMMARY_NOTE}
         </p>
       </DsCard>
 

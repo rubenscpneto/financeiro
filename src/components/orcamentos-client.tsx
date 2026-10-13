@@ -38,7 +38,7 @@ export function OrcamentosClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <PageTitle subtitle="Teto mensal por categoria." />
+      <PageTitle subtitle={monthLabelPt(yearMonth)} />
 
       <DsCard>
         <h2 className="text-lg font-semibold">Definir teto</h2>
@@ -53,9 +53,7 @@ export function OrcamentosClient({
         >
           <FieldGroup className="md:grid md:grid-cols-4 md:items-end">
             <Field>
-              <FieldLabel htmlFor="year_month">
-                Mês{yearMonth ? ` · ${monthLabelPt(yearMonth)}` : ""}
-              </FieldLabel>
+              <FieldLabel htmlFor="year_month">Mês</FieldLabel>
               <Input
                 id="year_month"
                 name="year_month"
@@ -108,7 +106,6 @@ export function OrcamentosClient({
                   <p className="text-base font-semibold">
                     {b.categories?.name ?? "Categoria"}
                   </p>
-                  <p className="text-sm text-ds-muted">{b.year_month}</p>
                 </div>
                 <form
                   action={(fd) => {

@@ -118,8 +118,8 @@ export function ConfiguracoesClient({
   pluggy: {
     connected: boolean
     institution: string | null
-    statusLabel: string
-    detail: string | null
+    statusLabel: string | null
+    action: string
   }
   settings: UserSettings
   bankCount: number
@@ -391,12 +391,8 @@ export function ConfiguracoesClient({
               radius="lg"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold">
-                {pluggy.institution ?? "Pluggy"}
-              </p>
-              <p className="text-sm text-ds-muted">{pluggy.statusLabel}</p>
-              {pluggy.detail ? (
-                <p className="mt-1 text-sm text-ds-subtle">{pluggy.detail}</p>
+              {pluggy.statusLabel ? (
+                <p className="text-base font-semibold">{pluggy.statusLabel}</p>
               ) : null}
               <a
                 href="https://my.pluggy.ai"
@@ -404,7 +400,7 @@ export function ConfiguracoesClient({
                 rel="noreferrer"
                 className="mt-2 inline-block text-sm font-semibold text-ds-accent"
               >
-                Reconectar no Meu Pluggy
+                {pluggy.action}
               </a>
             </div>
           </div>
