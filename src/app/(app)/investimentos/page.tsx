@@ -2,6 +2,8 @@ import { and, desc, eq } from "drizzle-orm"
 import { db } from "@/db"
 import { accounts, investmentMovements, investmentPositions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
+import { decMovement, decPosition } from "@/lib/crypto/rows"
 import {
   type AssetClass,
   type InvestmentMovement,
@@ -21,6 +23,7 @@ import {
 
 export default async function InvestimentosPage() {
   const { userId } = await requireUserOrRedirect()
+  const crypto = await getOrCreateUserCrypto(userId)
   const [positionRows, movementRows] = await Promise.all([
     db
       .select({
@@ -35,8 +38,7 @@ export default async function InvestimentosPage() {
           eq(investmentPositions.is_active, true),
           eq(accounts.type, "investment")
         )
-      )
-      .orderBy(investmentPositions.asset_name),
+      ),
     db
       .select()
       .from(investmentMovements)
@@ -44,27 +46,17 @@ export default async function InvestimentosPage() {
       .orderBy(desc(investmentMovements.date)),
   ])
 
-  const list = positionRows.map((row) => ({
-    ...row.position,
-    quantity: Number(row.position.quantity),
-    avg_price: Number(row.position.avg_price),
-    current_price: Number(row.position.current_price),
-    rate: row.position.rate != null ? Number(row.position.rate) : null,
-    amount_original:
-      row.position.amount_original != null
-        ? Number(row.position.amount_original)
-        : null,
-    amount_withdrawal:
-      row.position.amount_withdrawal != null
-        ? Number(row.position.amount_withdrawal)
-        : null,
-    institution: row.institution ?? "",
-  })) as (InvestmentPosition & { institution: string })[]
+  const list = positionRows.map((row) => {
+    const p = decPosition(crypto, row.position)
+    return {
+      ...p,
+      institution: crypto.decryptFlex("institution", row.institution) ?? "",
+    }
+  }) as (InvestmentPosition & { institution: string })[]
 
-  const movs = movementRows.map((m) => ({
-    ...m,
-    amount: Number(m.amount),
-  })) as InvestmentMovement[]
+  const movs = movementRows.map((m) =>
+    decMovement(crypto, m)
+  ) as InvestmentMovement[]
 
   const firstAporteByPosition = new Map<string, string>()
   for (const m of [...movs].reverse()) {

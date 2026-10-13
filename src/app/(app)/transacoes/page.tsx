@@ -3,6 +3,8 @@ import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/db"
 import { accounts, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
+import { decAccount, decTransaction } from "@/lib/crypto/rows"
 import { TransacoesClient } from "@/components/transacoes-client"
 import { currentYearMonth, monthBounds } from "@/lib/format"
 import type { Account, Category, Transaction } from "@/lib/types"
@@ -13,6 +15,7 @@ export default async function TransacoesPage({
   searchParams: Promise<Record<string, string | undefined>>
 }) {
   const { userId } = await requireUserOrRedirect()
+  const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
 
   const hasCustomRange = Boolean(params.from || params.to)
@@ -50,8 +53,7 @@ export default async function TransacoesPage({
     db
       .select()
       .from(accounts)
-      .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true)))
-      .orderBy(accounts.name),
+      .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true))),
     db
       .select()
       .from(categories)
@@ -59,12 +61,20 @@ export default async function TransacoesPage({
       .orderBy(categories.name),
   ])
 
-  const mapped = txnRows.map((row) => ({
-    ...row.txn,
-    amount: Number(row.txn.amount),
-    accounts: row.account_name ? { name: row.account_name } : null,
-    categories: row.category_name ? { name: row.category_name } : null,
-  }))
+  const mapped = txnRows.map((row) => {
+    const txn = decTransaction(crypto, row.txn)
+    const accountName = row.account_name
+      ? crypto.decryptFlex("name", row.account_name)
+      : null
+    return {
+      ...txn,
+      accounts: accountName ? { name: accountName } : null,
+      categories: row.category_name ? { name: row.category_name } : null,
+    }
+  })
+  const decodedAccounts = accountRows
+    .map((a) => decAccount(crypto, a))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
 
   const periodLabel = yearMonth
     ? yearMonth
@@ -86,7 +96,7 @@ export default async function TransacoesPage({
             accounts?: { name: string } | null
             categories?: { name: string } | null
           })[]}
-          accounts={accountRows as Account[]}
+          accounts={decodedAccounts as Account[]}
           categories={categoryRows as Category[]}
           yearMonth={yearMonth}
           from={from ?? ""}

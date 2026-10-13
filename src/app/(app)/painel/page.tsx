@@ -11,6 +11,8 @@ import {
   transactions,
 } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
+import { decAccount } from "@/lib/crypto/rows"
 import { PainelClient } from "@/components/painel-client"
 import { PainelAccountFilter } from "@/components/painel-account-filter"
 import { currentYearMonth, monthBounds } from "@/lib/format"
@@ -23,6 +25,7 @@ export default async function PainelPage({
   searchParams: Promise<Record<string, string | undefined>>
 }) {
   const { userId } = await requireUserOrRedirect()
+  const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
   const accountId = params.account_id || null
   const yearMonth = currentYearMonth()
@@ -112,8 +115,7 @@ export default async function PainelPage({
     db
       .select()
       .from(accounts)
-      .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true)))
-      .orderBy(accounts.name),
+      .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true))),
     db
       .select({
         amount: transactions.amount,
@@ -128,12 +130,24 @@ export default async function PainelPage({
   let creditDebt = 0
   for (const t of allTxns) {
     const type = t.source_type
-    const amt = Number(t.amount)
+    const amt = crypto.decryptNum("amount", t.amount)
     if (type === "checking") checkingFromTxns += amt
     if (type === "credit_card") creditDebt += amt
   }
   const creditFromTxns = creditDebt < 0 ? Math.abs(creditDebt) : 0
-  const investments = positions.reduce((s, p) => s + positionCurrentValue(p), 0)
+  const investments = positions.reduce(
+    (s, p) =>
+      s +
+      positionCurrentValue({
+        quantity: crypto.decryptNum("quantity", p.quantity),
+        current_price: crypto.decryptNum("current_price", p.current_price),
+        amount_withdrawal: crypto.decryptNumOpt(
+          "amount_withdrawal",
+          p.amount_withdrawal
+        ),
+      }),
+    0
+  )
 
   let checkingSnap = 0
   let creditSnap = 0
@@ -143,7 +157,7 @@ export default async function PainelPage({
   let hasInvestSnap = false
 
   for (const s of snapshots) {
-    const bal = Number(s.balance)
+    const bal = crypto.decryptNum("balance", s.balance)
     if (s.source_type === "checking") {
       checkingSnap += bal
       hasCheckingSnap = true
@@ -168,7 +182,7 @@ export default async function PainelPage({
 
   for (const t of txns) {
     if (t.is_transfer) continue
-    const amt = Number(t.amount)
+    const amt = crypto.decryptNum("amount", t.amount)
     const day = t.date.slice(8, 10)
     const bucket = byDay.get(day) ?? { entradas: 0, saidas: 0 }
     if (amt > 0) {
@@ -201,7 +215,7 @@ export default async function PainelPage({
   const spentByCat = new Map<string, number>()
   for (const t of txns) {
     if (t.is_transfer || !t.category_id) continue
-    const amt = Number(t.amount)
+    const amt = crypto.decryptNum("amount", t.amount)
     if (amt >= 0) continue
     spentByCat.set(
       t.category_id,
@@ -212,14 +226,18 @@ export default async function PainelPage({
   const budgetRows = budgetRowsRaw.map((b) => ({
     name: b.category_name ?? "Categoria",
     spent: spentByCat.get(b.category_id) ?? 0,
-    limit: Number(b.limit_amount),
+    limit: crypto.decryptNum("limit_amount", b.limit_amount),
   }))
 
   const goalRows = goalRowsRaw.map((g) => ({
-    name: g.name,
-    current: Number(g.current_amount),
-    target: Number(g.target_amount),
+    name: crypto.decryptFlex("name", g.name) ?? g.name,
+    current: crypto.decryptNum("current_amount", g.current_amount),
+    target: crypto.decryptNum("target_amount", g.target_amount),
   }))
+
+  const decodedAccounts = accountRows
+    .map((a) => decAccount(crypto, a))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
 
   return (
     <div className="flex flex-col gap-4">
@@ -231,7 +249,7 @@ export default async function PainelPage({
           </p>
         </div>
         <Suspense>
-          <PainelAccountFilter accounts={accountRows as Account[]} />
+          <PainelAccountFilter accounts={decodedAccounts as Account[]} />
         </Suspense>
       </div>
       <PainelClient

@@ -12,6 +12,12 @@ import {
   transactions,
 } from "@/db/schema"
 import { requireUser } from "@/lib/auth-session"
+import {
+  encMovement,
+  encPosition,
+  encTransaction,
+} from "@/lib/crypto/rows"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { assertAccountOwned, assertCategoryOwned, assertImportOwned } from "@/lib/ownership"
 import { saveStatementFile } from "@/lib/storage"
 import {
@@ -62,6 +68,7 @@ export async function parseImportAction(formData: FormData): Promise<
   const auth = await requireAuth()
   if (!auth.ok) return { error: auth.error }
   const { userId } = auth
+  const crypto = await getOrCreateUserCrypto(userId)
 
   const file = formData.get("file")
   const accountId = String(formData.get("account_id") ?? "")
@@ -88,7 +95,7 @@ export async function parseImportAction(formData: FormData): Promise<
       account_id: accountId,
       source_type: sourceType,
       file_format: ext,
-      file_name: file.name,
+      file_name: crypto.encrypt("file_name", file.name),
       status: "pending",
     })
     .returning({ id: imports.id })
@@ -104,7 +111,8 @@ export async function parseImportAction(formData: FormData): Promise<
       userId,
       importRow.id,
       file.name,
-      buffer
+      buffer,
+      crypto
     )
   } catch (error) {
     warnings.push(
@@ -126,7 +134,7 @@ export async function parseImportAction(formData: FormData): Promise<
       .update(imports)
       .set({
         status: "failed",
-        error: msg,
+        error: crypto.encrypt("error", msg),
         file_path: storedPath,
         updated_at: new Date(),
       })
@@ -146,7 +154,7 @@ export async function parseImportAction(formData: FormData): Promise<
       .update(imports)
       .set({
         status: "failed",
-        error: detail,
+        error: crypto.encrypt("error", detail),
         file_path: storedPath,
         raw_meta: { ...parsed.meta, warnings: metaWarnings },
         updated_at: new Date(),
@@ -165,7 +173,15 @@ export async function parseImportAction(formData: FormData): Promise<
       })
       .from(categoryRules)
       .where(eq(categoryRules.user_id, userId))
-      .orderBy(categoryRules.priority),
+      .orderBy(categoryRules.priority)
+      .then((rows) =>
+        rows.map((r) => ({
+          ...r,
+          match_pattern:
+            crypto.decryptFlex("match_pattern", r.match_pattern) ??
+            r.match_pattern,
+        }))
+      ),
     db
       .select({
         id: categories.id,
@@ -255,6 +271,7 @@ export async function commitImportAction(payload: {
   const auth = await requireAuth()
   if (!auth.ok) return { error: auth.error }
   const { userId } = auth
+  const crypto = await getOrCreateUserCrypto(userId)
 
   const ownedImport = await assertImportOwned(userId, payload.importId)
   if (!ownedImport.ok) return { error: ownedImport.error }
@@ -271,21 +288,31 @@ export async function commitImportAction(payload: {
   let skipped = 0
 
   if (payload.transactions.length > 0) {
-    const rows = payload.transactions.map((t) => ({
-      user_id: userId,
-      account_id: payload.accountId,
-      import_id: payload.importId,
-      date: t.date,
-      description: t.description,
-      amount: String(t.amount),
-      category_id: t.category_id ?? null,
-      merchant: t.merchant ?? null,
-      installment: t.installment ?? null,
-      external_hash: t.externalHash,
-      source_category: t.sourceCategory ?? null,
-      source_type: payload.sourceType,
-      is_transfer: Boolean(t.isTransfer),
-    }))
+    const rows = payload.transactions.map((t) => {
+      const enc = encTransaction(crypto, {
+        description: t.description,
+        amount: t.amount,
+        merchant: t.merchant ?? null,
+        installment: t.installment ?? null,
+        source_category: t.sourceCategory ?? null,
+        external_hash: t.externalHash,
+      })
+      return {
+        user_id: userId,
+        account_id: payload.accountId,
+        import_id: payload.importId,
+        date: t.date,
+        description: enc.description,
+        amount: enc.amount,
+        category_id: t.category_id ?? null,
+        merchant: enc.merchant,
+        installment: enc.installment,
+        external_hash: enc.external_hash,
+        source_category: enc.source_category,
+        source_type: payload.sourceType,
+        is_transfer: Boolean(t.isTransfer),
+      }
+    })
 
     try {
       const data = await db
@@ -301,7 +328,11 @@ export async function commitImportAction(payload: {
       const message = error instanceof Error ? error.message : "Falha ao gravar"
       await db
         .update(imports)
-        .set({ status: "failed", error: message, updated_at: new Date() })
+        .set({
+          status: "failed",
+          error: crypto.encrypt("error", message),
+          updated_at: new Date(),
+        })
         .where(and(eq(imports.id, payload.importId), eq(imports.user_id, userId)))
       return { error: message }
     }
@@ -309,26 +340,39 @@ export async function commitImportAction(payload: {
 
   if (payload.positions.length > 0) {
     const now = new Date()
-    const rows = payload.positions.map((p) => ({
-      user_id: userId,
-      account_id: payload.accountId,
-      ticker: p.ticker ?? null,
-      asset_name: p.assetName,
-      asset_class: p.assetClass,
-      quantity: String(p.quantity),
-      avg_price: String(p.avgPrice),
-      current_price: String(p.currentPrice),
-      as_of: p.asOf,
-      purchase_date: p.purchaseDate ?? null,
-      rate: p.rate != null ? String(p.rate) : null,
-      rate_type: p.rateType ?? null,
-      amount_original: p.amountOriginal != null ? String(p.amountOriginal) : null,
-      amount_withdrawal:
-        p.amountWithdrawal != null ? String(p.amountWithdrawal) : null,
-      external_hash: p.externalHash,
-      is_active: true,
-      updated_at: now,
-    }))
+    const rows = payload.positions.map((p) => {
+      const enc = encPosition(crypto, {
+        ticker: p.ticker ?? null,
+        asset_name: p.assetName,
+        quantity: p.quantity,
+        avg_price: p.avgPrice,
+        current_price: p.currentPrice,
+        rate: p.rate,
+        rate_type: p.rateType,
+        amount_original: p.amountOriginal,
+        amount_withdrawal: p.amountWithdrawal,
+        external_hash: p.externalHash,
+      })
+      return {
+        user_id: userId,
+        account_id: payload.accountId,
+        ticker: enc.ticker,
+        asset_name: enc.asset_name,
+        asset_class: p.assetClass,
+        quantity: enc.quantity,
+        avg_price: enc.avg_price,
+        current_price: enc.current_price,
+        as_of: p.asOf,
+        purchase_date: p.purchaseDate ?? null,
+        rate: enc.rate,
+        rate_type: enc.rate_type,
+        amount_original: enc.amount_original,
+        amount_withdrawal: enc.amount_withdrawal,
+        external_hash: enc.external_hash,
+        is_active: true,
+        updated_at: now,
+      }
+    })
 
     try {
       await db
@@ -364,16 +408,23 @@ export async function commitImportAction(payload: {
   }
 
   if (payload.movements.length > 0) {
-    const rows = payload.movements.map((m) => ({
-      user_id: userId,
-      account_id: payload.accountId,
-      import_id: payload.importId,
-      date: m.date,
-      type: m.type,
-      description: m.description ?? null,
-      amount: String(m.amount),
-      external_hash: m.externalHash,
-    }))
+    const rows = payload.movements.map((m) => {
+      const enc = encMovement(crypto, {
+        description: m.description ?? null,
+        amount: m.amount,
+        external_hash: m.externalHash,
+      })
+      return {
+        user_id: userId,
+        account_id: payload.accountId,
+        import_id: payload.importId,
+        date: m.date,
+        type: m.type,
+        description: enc.description,
+        amount: enc.amount,
+        external_hash: enc.external_hash,
+      }
+    })
 
     try {
       await db

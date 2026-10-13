@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "drizzle-kit migrate",
-    "db:import-users": "tsx scripts/import-legacy-users.ts"
+    "db:import-users": "tsx scripts/import-legacy-users.ts",
+    "test": "tsx --test src/lib/crypto/*.test.ts",
+    "encrypt:backfill": "tsx scripts/encrypt-existing-data.ts",
+    "encrypt:verify": "tsx scripts/encrypt-existing-data.ts --verify",
+    "encrypt:rewrap": "tsx scripts/rewrap-deks.ts",
+    "encrypt:rotate-dek": "tsx scripts/rotate-deks.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

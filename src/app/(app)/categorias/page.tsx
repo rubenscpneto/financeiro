@@ -2,11 +2,13 @@ import { eq } from "drizzle-orm"
 import { db } from "@/db"
 import { categories, categoryRules } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
+import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { CategoriasClient } from "@/components/categorias-client"
 import type { Category, CategoryRule } from "@/lib/types"
 
 export default async function CategoriasPage() {
   const { userId } = await requireUserOrRedirect()
+  const crypto = await getOrCreateUserCrypto(userId)
   const [categoryRows, ruleRows] = await Promise.all([
     db
       .select()
@@ -26,6 +28,9 @@ export default async function CategoriasPage() {
 
   const rules = ruleRows.map((row) => ({
     ...row.rule,
+    match_pattern:
+      crypto.decryptFlex("match_pattern", row.rule.match_pattern) ??
+      row.rule.match_pattern,
     categories: row.category_name ? { name: row.category_name } : null,
   }))
 
