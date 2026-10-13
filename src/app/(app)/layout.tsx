@@ -35,15 +35,15 @@ export default async function AppLayout({
   const banks = groupAccountsByBank(accountRows.map((a) => decAccount(crypto, a)))
 
   return (
-    <AppProviders>
-      <Suspense>
+    <Suspense>
+      <AppProviders>
         <AppShell
           userLabel={label}
           banks={banks.map((b) => ({ key: b.key, name: b.name }))}
         >
           {children}
         </AppShell>
-      </Suspense>
-    </AppProviders>
+      </AppProviders>
+    </Suspense>
   )
 }

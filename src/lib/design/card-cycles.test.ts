@@ -4,6 +4,7 @@ import {
   cycleForDate,
   cycleTotals,
   faturaHeaderTotal,
+  faturaVenceLabel,
   futureInstallments,
   itemsForCycle,
   type CardCycle,
@@ -109,6 +110,13 @@ test("Fatura atual on the open cycle matches Início open-bill; other tabs follo
   const openBill = 1072.25
   assert.equal(faturaHeaderTotal({ tab: 0, openBill, items: openItems }), 1072.25)
   assert.equal(faturaHeaderTotal({ tab: 1, openBill, items: nextItems }), 300)
+})
+
+test("vence label follows the selected cycle due date", () => {
+  assert.equal(faturaVenceLabel("2026-11-05"), "vence 05/11")
+  assert.equal(faturaVenceLabel("2026-12-05"), "vence 05/12")
+  assert.equal(faturaVenceLabel("2027-01-05"), "vence 05/01")
+  assert.equal(faturaVenceLabel(null), "aberta")
 })
 
 test("future installments are sorted by date", () => {

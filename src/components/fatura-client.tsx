@@ -14,6 +14,7 @@ import { useHideValues } from "@/components/hide-values-provider"
 import {
   cycleTotals,
   faturaHeaderTotal,
+  faturaVenceLabel,
   type CardCycle,
   type CycleItem,
 } from "@/lib/card-cycles"
@@ -160,7 +161,7 @@ export function FaturaClient({
             <AppMoney value={headerTotal} />
           </p>
           <p className="text-sm text-ds-subtle">
-            {dueDate ? `vence ${formatDateBR(dueDate).slice(0, 5)}` : "aberta"}
+            {faturaVenceLabel(current?.dueDate)}
           </p>
         </DsCard>
         <DsCard>

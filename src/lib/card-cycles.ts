@@ -88,6 +88,13 @@ export function faturaHeaderTotal(opts: {
   return cycleTotals(opts.items).net
 }
 
+export function faturaVenceLabel(dueDate: string | null | undefined): string {
+  if (!dueDate) return "aberta"
+  const [, m, d] = dueDate.split("-")
+  if (!m || !d) return "aberta"
+  return `vence ${d}/${m}`
+}
+
 export function cycleTotals(items: CycleItem[]): {
   aVista: number
   parcelas: number

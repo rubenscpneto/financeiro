@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test"
 
 const port = Number(process.env.PORT ?? 3000)
-const baseURL = `http://127.0.0.1:${port}`
+const baseURL = `http://localhost:${port}`
 
 export default defineConfig({
   testDir: "e2e",
@@ -12,6 +12,7 @@ export default defineConfig({
   use: {
     baseURL,
     locale: "pt-BR",
+    timezoneId: "America/Sao_Paulo",
   },
   webServer: {
     command: "npm run start",
