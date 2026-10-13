@@ -22,6 +22,7 @@ import {
   primaryAccountIds,
   resolveBank,
 } from "@/lib/banks"
+import { requestBankKey } from "@/lib/bank-filter-request"
 
 export default async function FaturaPage({
   searchParams,
@@ -31,6 +32,7 @@ export default async function FaturaPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
+  const bank = await requestBankKey(params.bank)
   const asOf = todayYmd()
 
   const [accountRows, snapRows, txnRows] = await Promise.all([
@@ -52,9 +54,9 @@ export default async function FaturaPage({
 
   const decoded = accountRows.map((a) => decAccount(crypto, a))
   const banks = groupAccountsByBank(decoded)
-  const scopedIds = accountIdsForBank(banks, params.bank)
+  const scopedIds = accountIdsForBank(banks, bank)
   const displayIds = new Set(
-    (balanceIdsForBank(banks, params.bank) ??
+    (balanceIdsForBank(banks, bank) ??
       banks.flatMap((g) => g.balanceAccountIds)).filter((id) =>
       scopedIds == null ? true : scopedIds.includes(id)
     )

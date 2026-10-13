@@ -17,6 +17,7 @@ import {
   primaryAccountIds,
 } from "@/lib/banks"
 import { decorateTransactions } from "@/lib/txn-class"
+import { requestBankKey } from "@/lib/bank-filter-request"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import { groupLoans, type AdjustmentRow } from "@/lib/loans"
 import type { Category, Transaction } from "@/lib/types"
@@ -29,6 +30,7 @@ export default async function TransacoesPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
+  const bank = await requestBankKey(params.bank)
 
   const hasCustomRange = Boolean(params.from || params.to)
   const yearMonth = !hasCustomRange ? params.mes || currentYearMonth() : null
@@ -64,7 +66,7 @@ export default async function TransacoesPage({
       (a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
     )
   const banks = groupAccountsByBank(decodedAccounts)
-  const bankIds = accountIdsForBank(banks, params.bank)
+  const bankIds = accountIdsForBank(banks, bank)
 
   const filters = [eq(transactions.user_id, userId)]
   if (params.category_id) filters.push(eq(transactions.category_id, params.category_id))
@@ -120,7 +122,7 @@ export default async function TransacoesPage({
       { yearMonth, from, to }
     ),
     {
-      filteredBankKey: params.bank,
+      filteredBankKey: bank,
       accountBankById: accountBankById(banks),
     }
   )

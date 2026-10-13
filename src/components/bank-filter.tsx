@@ -3,10 +3,20 @@
 import { useEffect, useRef } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { BankGroup } from "@/lib/banks"
-import { BANK_FILTER_STORAGE_KEY } from "@/lib/banks"
+import {
+  BANK_FILTER_COOKIE,
+  parseBankCookie,
+  serializeBankCookie,
+} from "@/lib/banks"
 import { cn } from "@/lib/utils"
 
-const HIDE_PREFIXES = ["/orcamentos", "/metas"]
+function readDocumentCookie(): string | null {
+  if (typeof document === "undefined") return null
+  const parts = document.cookie.split("; ")
+  const row = parts.find((p) => p.startsWith(`${BANK_FILTER_COOKIE}=`))
+  if (!row) return null
+  return parseBankCookie(decodeURIComponent(row.slice(BANK_FILTER_COOKIE.length + 1)))
+}
 
 function ChipButton({
   active,
@@ -43,29 +53,17 @@ export function BankFilter({
   const params = useSearchParams()
   const current = params.get("bank") ?? ""
   const restored = useRef(false)
-  const hidePage = HIDE_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`)
-  )
-  const hidden = hidePage || banks.length < 2
+  const hidden = banks.length < 2
 
   useEffect(() => {
     if (hidden || restored.current) return
     restored.current = true
-    let stored = ""
-    try {
-      stored = sessionStorage.getItem(BANK_FILTER_STORAGE_KEY) ?? ""
-    } catch {
-      stored = ""
-    }
     const urlBank = params.get("bank")
     if (urlBank) {
-      try {
-        sessionStorage.setItem(BANK_FILTER_STORAGE_KEY, urlBank)
-      } catch {
-        /* ignore */
-      }
+      document.cookie = serializeBankCookie(urlBank)
       return
     }
+    const stored = readDocumentCookie()
     if (stored && banks.some((b) => b.key === stored)) {
       const q = new URLSearchParams(params.toString())
       q.set("bank", stored)
@@ -81,12 +79,7 @@ export function BankFilter({
     q.delete("account_id")
     if (next) q.set("bank", next)
     else q.delete("bank")
-    try {
-      if (next) sessionStorage.setItem(BANK_FILTER_STORAGE_KEY, next)
-      else sessionStorage.removeItem(BANK_FILTER_STORAGE_KEY)
-    } catch {
-      /* ignore */
-    }
+    document.cookie = serializeBankCookie(next)
     const qs = q.toString()
     router.push(qs ? `${pathname}?${qs}` : pathname)
   }

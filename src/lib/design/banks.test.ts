@@ -3,10 +3,13 @@ import test from "node:test"
 import {
   accountIdsForBank,
   applyOwnBankTransfers,
+  bankFromParams,
   dedupeTransactions,
   groupAccountsByBank,
+  parseBankCookie,
   pickBalanceAccountIds,
   resolveBank,
+  serializeBankCookie,
 } from "../banks.ts"
 import { decorateTransactions } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
@@ -155,4 +158,15 @@ test("Accommodation maps to Hospedagem", () => {
 
 test("month labels are 'Outubro de 2026'", () => {
   assert.equal(monthLabelPt("2026-10"), "Outubro de 2026")
+})
+
+test("bank filter URL wins; cookie fills in; empty is Todos", () => {
+  assert.equal(bankFromParams("c6", "nubank"), "c6")
+  assert.equal(bankFromParams(undefined, "c6"), "c6")
+  assert.equal(bankFromParams("", "c6"), "c6")
+  assert.equal(bankFromParams(undefined, undefined), null)
+  assert.equal(parseBankCookie("todos"), null)
+  assert.equal(parseBankCookie(""), null)
+  assert.match(serializeBankCookie("c6"), /financeiro-bank=c6/)
+  assert.match(serializeBankCookie(null), /Max-Age=0/)
 })

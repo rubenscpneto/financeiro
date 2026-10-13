@@ -28,6 +28,7 @@ import { parseAccountMeta } from "@/lib/account-meta"
 import { buildReserve, recurringMonthlySpend } from "@/lib/reserve"
 import { roundCents } from "@/lib/money-math"
 import { InvestimentosClient } from "@/components/investimentos-client"
+import { requestBankKey } from "@/lib/bank-filter-request"
 import type { ClassifiableTxn as Txn } from "@/lib/txn-class"
 
 export default async function InvestimentosPage({
@@ -38,6 +39,7 @@ export default async function InvestimentosPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
+  const bank = await requestBankKey(params.bank)
   const asOf = todayYmd()
   const ym = currentYearMonth()
   const monthStart = monthBounds(ym).start
@@ -81,12 +83,12 @@ export default async function InvestimentosPage({
   })
   const banks = groupAccountsByBank(accountsDecoded)
   const scopedIds =
-    accountIdsForBank(banks, params.bank) ??
+    accountIdsForBank(banks, bank) ??
     banks.flatMap((g) => g.accountIds)
   const balIds =
-    balanceIdsForBank(banks, params.bank) ??
+    balanceIdsForBank(banks, bank) ??
     banks.flatMap((g) => g.balanceAccountIds)
-  const bankSuffix = bankHeadlineSuffix(banks, params.bank)
+  const bankSuffix = bankHeadlineSuffix(banks, bank)
   const scopedAcc = new Set(scopedIds)
   const balAcc = new Set(balIds)
   const titles = positionRows

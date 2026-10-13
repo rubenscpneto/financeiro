@@ -14,6 +14,7 @@ import {
   groupAccountsByBank,
   primaryAccountIds,
 } from "@/lib/banks"
+import { requestBankKey } from "@/lib/bank-filter-request"
 
 export default async function AssinaturasPage({
   searchParams,
@@ -25,6 +26,7 @@ export default async function AssinaturasPage({
   const asOf = todayYmd()
   const settings = await loadUserSettings(crypto)
   const params = await searchParams
+  const bank = await requestBankKey(params.bank)
 
   const [accountRows, txnRows] = await Promise.all([
     db
@@ -41,7 +43,7 @@ export default async function AssinaturasPage({
 
   const decodedAccounts = accountRows.map((a) => decAccount(crypto, a))
   const banks = groupAccountsByBank(decodedAccounts)
-  const bankIds = accountIdsForBank(banks, params.bank)
+  const bankIds = accountIdsForBank(banks, bank)
   const allowed = bankIds ? new Set(bankIds) : null
   const accName = new Map(
     decodedAccounts.map((a) => [a.id, a.name])

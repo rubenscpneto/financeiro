@@ -28,6 +28,7 @@ import {
 } from "@/lib/banks"
 import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
+import { requestBankKey } from "@/lib/bank-filter-request"
 import type { Account } from "@/lib/types"
 
 const EMPTY_UUID = "00000000-0000-0000-0000-000000000000"
@@ -40,6 +41,7 @@ export default async function PainelPage({
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
   const params = await searchParams
+  const bank = await requestBankKey(params.bank)
   const yearMonth = currentYearMonth()
   const { start, end } = monthBounds(yearMonth)
 
@@ -55,14 +57,14 @@ export default async function PainelPage({
     ) as Account[]
 
   const banks = groupAccountsByBank(decodedAccounts)
-  const txnIds = accountIdsForBank(banks, params.bank)
+  const txnIds = accountIdsForBank(banks, bank)
   const balIds =
-    balanceIdsForBank(banks, params.bank) ??
+    balanceIdsForBank(banks, bank) ??
     banks.flatMap((g) => g.balanceAccountIds)
   const snapScope = balIds.length > 0 ? balIds : [EMPTY_UUID]
-  const bankSuffix = bankHeadlineSuffix(banks, params.bank)
-  const bankName = params.bank
-    ? banks.find((b) => b.key === params.bank)?.name ?? null
+  const bankSuffix = bankHeadlineSuffix(banks, bank)
+  const bankName = bank
+    ? banks.find((b) => b.key === bank)?.name ?? null
     : null
 
   const txnFilters = [
@@ -233,7 +235,7 @@ export default async function PainelPage({
       { yearMonth }
     ),
     {
-      filteredBankKey: params.bank,
+      filteredBankKey: bank,
       accountBankById: accountBankById(banks),
     }
   )
