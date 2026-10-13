@@ -3,6 +3,7 @@ import { db } from "@/db"
 import { profiles } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
+import { AppProviders } from "@/components/app-providers"
 import { AppShell } from "@/components/app-shell"
 
 export default async function AppLayout({
@@ -22,5 +23,9 @@ export default async function AppLayout({
   const nome = crypto.decryptFlex("nome", profile?.nome ?? null)
   const label = nome || user.email || "Usuário"
 
-  return <AppShell userLabel={label}>{children}</AppShell>
+  return (
+    <AppProviders>
+      <AppShell userLabel={label}>{children}</AppShell>
+    </AppProviders>
+  )
 }

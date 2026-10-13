@@ -2,28 +2,21 @@
 
 import { useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { updateTransactionCategoryAction } from "@/lib/actions/crud"
 import type { Account, Category, Transaction } from "@/lib/types"
+import { formatDateBR, shiftYearMonth } from "@/lib/format"
 import {
-  formatBRL,
-  formatDateBR,
-  cnSignClass,
-  shiftYearMonth,
-} from "@/lib/format"
+  DsCard,
+  Flag,
+  IconBadge,
+  PageTitle,
+  dsControlClass,
+} from "@/components/design/primitives"
+import { AppMoney } from "@/components/app-money"
+import { DesignIcon } from "@/components/design/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
 
 type Row = Transaction & {
   accounts?: { name: string } | null
@@ -68,234 +61,214 @@ export function TransacoesClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
-        <CardContent className="flex flex-col gap-4 pt-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!yearMonth}
-              onClick={() => {
-                if (!yearMonth) return
-                pushQuery(router, params, {
-                  mes: shiftYearMonth(yearMonth, -1),
-                  from: null,
-                  to: null,
-                })
-              }}
-            >
-              <ChevronLeft />
-            </Button>
-            <Input
-              type="month"
-              className="w-auto"
-              value={yearMonth ?? ""}
-              onChange={(e) => {
-                const mes = e.target.value
-                if (!mes) return
-                pushQuery(router, params, {
-                  mes,
-                  from: null,
-                  to: null,
-                })
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={!yearMonth}
-              onClick={() => {
-                if (!yearMonth) return
-                pushQuery(router, params, {
-                  mes: shiftYearMonth(yearMonth, 1),
-                  from: null,
-                  to: null,
-                })
-              }}
-            >
-              <ChevronRight />
-            </Button>
-            {!yearMonth ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  pushQuery(router, params, {
-                    mes: null,
-                    from: null,
-                    to: null,
-                  })
-                }
-              >
-                Voltar ao mês atual
-              </Button>
-            ) : null}
-          </div>
+      <PageTitle
+        title="Extrato"
+        subtitle="Filtre por conta, categoria, mês ou intervalo."
+      />
 
-          <form
-            className="flex flex-wrap items-end gap-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const fd = new FormData(e.currentTarget)
-              const account = String(fd.get("account_id") ?? "")
-              const category = String(fd.get("category_id") ?? "")
-              const rangeFrom = String(fd.get("from") ?? "")
-              const rangeTo = String(fd.get("to") ?? "")
-              const q = new URLSearchParams()
-              if (account) q.set("account_id", account)
-              if (category) q.set("category_id", category)
-              if (rangeFrom || rangeTo) {
-                if (rangeFrom) q.set("from", rangeFrom)
-                if (rangeTo) q.set("to", rangeTo)
-              } else if (yearMonth) {
-                q.set("mes", yearMonth)
-              }
-              router.push(`/transacoes?${q.toString()}`)
+      <DsCard>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={!yearMonth}
+            onClick={() => {
+              if (!yearMonth) return
+              pushQuery(router, params, {
+                mes: shiftYearMonth(yearMonth, -1),
+                from: null,
+                to: null,
+              })
             }}
           >
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">
-                Conta
-              </label>
-              <select
-                name="account_id"
-                defaultValue={accountId}
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
-              >
-                <option value="">Todas</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                    {a.institution ? ` (${a.institution})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">
-                Categoria
-              </label>
-              <select
-                name="category_id"
-                defaultValue={categoryId}
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
-              >
-                <option value="">Todas</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">
-                De
-              </label>
-              <Input
-                type="date"
-                name="from"
-                defaultValue={yearMonth ? "" : from}
-                className="w-auto"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-muted-foreground">
-                Até
-              </label>
-              <Input
-                type="date"
-                name="to"
-                defaultValue={yearMonth ? "" : to}
-                className="w-auto"
-              />
-            </div>
-            <Button type="submit" variant="outline">
-              Filtrar
+            <DesignIcon name="back" size={18} />
+          </Button>
+          <Input
+            type="month"
+            className="w-auto"
+            value={yearMonth ?? ""}
+            onChange={(e) => {
+              const mes = e.target.value
+              if (!mes) return
+              pushQuery(router, params, {
+                mes,
+                from: null,
+                to: null,
+              })
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={!yearMonth}
+            onClick={() => {
+              if (!yearMonth) return
+              pushQuery(router, params, {
+                mes: shiftYearMonth(yearMonth, 1),
+                from: null,
+                to: null,
+              })
+            }}
+          >
+            <DesignIcon name="chevron" size={18} />
+          </Button>
+          {!yearMonth ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                pushQuery(router, params, {
+                  mes: null,
+                  from: null,
+                  to: null,
+                })
+              }
+            >
+              Voltar ao mês atual
             </Button>
-          </form>
-        </CardContent>
-      </Card>
+          ) : null}
+        </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Conta</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell>{formatDateBR(t.date)}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <span>{t.description}</span>
-                      <div className="flex gap-1">
-                        {t.installment ? (
-                          <Badge variant="secondary">{t.installment}</Badge>
-                        ) : null}
-                        {t.is_transfer ? (
-                          <Badge variant="outline">Transferência</Badge>
-                        ) : null}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{t.accounts?.name ?? "—"}</TableCell>
-                  <TableCell>
-                    <select
-                      className="h-8 max-w-44 rounded-lg border border-input bg-transparent px-2 text-sm"
-                      defaultValue={t.category_id ?? ""}
-                      disabled={pending}
-                      onChange={(e) => {
-                        const fd = new FormData()
-                        fd.set("id", t.id)
-                        fd.set("category_id", e.target.value)
-                        fd.set("is_transfer", String(t.is_transfer))
-                        start(async () => {
-                          const res = await updateTransactionCategoryAction(fd)
-                          if (res.error) toast.error(res.error)
-                          else toast.success("Categoria atualizada")
-                        })
-                      }}
-                    >
-                      <option value="">Sem categoria</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </TableCell>
-                  <TableCell
-                    className={`text-right font-medium ${cnSignClass(Number(t.amount))}`}
-                  >
-                    {formatBRL(Number(t.amount))}
-                  </TableCell>
-                </TableRow>
+        <form
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const fd = new FormData(e.currentTarget)
+            const account = String(fd.get("account_id") ?? "")
+            const category = String(fd.get("category_id") ?? "")
+            const rangeFrom = String(fd.get("from") ?? "")
+            const rangeTo = String(fd.get("to") ?? "")
+            const q = new URLSearchParams()
+            if (account) q.set("account_id", account)
+            if (category) q.set("category_id", category)
+            if (rangeFrom || rangeTo) {
+              if (rangeFrom) q.set("from", rangeFrom)
+              if (rangeTo) q.set("to", rangeTo)
+            } else if (yearMonth) {
+              q.set("mes", yearMonth)
+            }
+            router.push(`/transacoes?${q.toString()}`)
+          }}
+        >
+          <label className="flex flex-col gap-1 text-sm text-ds-muted">
+            Conta
+            <select
+              name="account_id"
+              defaultValue={accountId}
+              className={dsControlClass}
+            >
+              <option value="">Todas</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {a.institution ? ` (${a.institution})` : ""}
+                </option>
               ))}
-              {transactions.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-center text-muted-foreground"
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-ds-muted">
+            Categoria
+            <select
+              name="category_id"
+              defaultValue={categoryId}
+              className={dsControlClass}
+            >
+              <option value="">Todas</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-ds-muted">
+            De
+            <Input
+              type="date"
+              name="from"
+              defaultValue={yearMonth ? "" : from}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-ds-muted">
+            Até
+            <Input
+              type="date"
+              name="to"
+              defaultValue={yearMonth ? "" : to}
+            />
+          </label>
+          <Button type="submit">Filtrar</Button>
+        </form>
+      </DsCard>
+
+      <DsCard className="gap-0 p-2 sm:p-[18px]">
+        {transactions.map((t) => {
+          const amount = Number(t.amount)
+          return (
+            <div
+              key={t.id}
+              className="flex items-start gap-3.5 border-b border-ds-border py-3 last:border-0"
+            >
+              <IconBadge
+                name={amount > 0 ? "income" : "cart"}
+                tone={t.is_transfer ? "info" : amount > 0 ? "pos" : "neutral"}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-medium text-ds-ink">
+                  {t.description}
+                </p>
+                <p className="truncate text-sm text-ds-muted">
+                  {t.accounts?.name ?? "Conta"} · {formatDateBR(t.date)}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {t.installment ? <Flag>{t.installment}</Flag> : null}
+                  {t.is_transfer ? (
+                    <span className="text-sm font-medium text-ds-info">
+                      Transferência
+                    </span>
+                  ) : null}
+                  <select
+                    className={`${dsControlClass} h-9 max-w-52`}
+                    defaultValue={t.category_id ?? ""}
+                    disabled={pending}
+                    onChange={(e) => {
+                      const fd = new FormData()
+                      fd.set("id", t.id)
+                      fd.set("category_id", e.target.value)
+                      fd.set("is_transfer", String(t.is_transfer))
+                      start(async () => {
+                        const res = await updateTransactionCategoryAction(fd)
+                        if (res.error) toast.error(res.error)
+                        else toast.success("Categoria atualizada")
+                      })
+                    }}
                   >
-                    Nenhuma transação neste período.
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    <option value="">Sem categoria</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <AppMoney
+                value={amount}
+                sign
+                className={`text-base font-semibold ${amount > 0 ? "text-ds-pos" : "text-ds-ink"}`}
+              />
+            </div>
+          )
+        })}
+        {transactions.length === 0 ? (
+          <p className="px-3 py-8 text-center text-sm text-ds-muted">
+            Nenhuma transação neste período.
+          </p>
+        ) : null}
+      </DsCard>
     </div>
   )
 }

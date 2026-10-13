@@ -245,13 +245,7 @@ export default async function PainelPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Painel</h1>
-          <p className="text-sm text-muted-foreground">
-            Visão geral de {yearMonth}
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Suspense>
           <PainelAccountFilter accounts={decodedAccounts as Account[]} />
         </Suspense>

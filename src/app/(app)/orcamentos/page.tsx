@@ -69,14 +69,7 @@ export default async function OrcamentosPage({
   }))
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Orçamentos</h1>
-        <p className="text-sm text-muted-foreground">
-          Limites mensais e acompanhamento de gastos.
-        </p>
-      </div>
-      <OrcamentosClient
+    <OrcamentosClient
         budgets={rows as (Budget & {
           categories?: { name: string; color: string | null } | null
           spent: number
@@ -84,6 +77,5 @@ export default async function OrcamentosPage({
         categories={categoryRows as Category[]}
         yearMonth={yearMonth}
       />
-    </div>
   )
 }

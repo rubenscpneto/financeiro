@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import type { Account } from "@/lib/types"
+import { dsControlClass } from "@/components/design/primitives"
 
 export function PainelAccountFilter({ accounts }: { accounts: Account[] }) {
   const router = useRouter()
@@ -10,9 +11,9 @@ export function PainelAccountFilter({ accounts }: { accounts: Account[] }) {
 
   return (
     <div>
-      <label className="mb-1 block text-xs text-muted-foreground">Conta</label>
+      <label className="mb-1 block text-sm text-ds-muted">Conta</label>
       <select
-        className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+        className={dsControlClass}
         value={current}
         onChange={(e) => {
           const q = new URLSearchParams(params.toString())

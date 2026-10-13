@@ -1,6 +1,7 @@
 /* Design tokens — light + dark. Source: designer v3 + product spec. */
 
-:root {
+:root,
+.light {
   --ds-bg: #f5f6f2;
   --ds-surface: #ffffff;
   --ds-elevated: #eef2ec;

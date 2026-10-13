@@ -125,20 +125,11 @@ export default async function InvestimentosPage() {
     }))
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Investimentos</h1>
-        <p className="text-sm text-muted-foreground">
-          Patrimônio, ativos e movimentações via Open Finance.
-        </p>
-      </div>
-
-      <InvestimentosClient
+    <InvestimentosClient
         currentTotal={currentTotal}
         evolution={evolution}
         ativos={ativos}
         movimentos={movimentos}
       />
-    </div>
   )
 }

@@ -2,6 +2,25 @@ import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { DesignIcon, type DesignIconName } from "@/components/design/icons"
 
+export function PageTitle({
+  title,
+  subtitle,
+}: {
+  title: string
+  subtitle?: string
+}) {
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight text-ds-ink">
+        {title}
+      </h1>
+      {subtitle ? (
+        <p className="mt-1 text-sm text-ds-muted">{subtitle}</p>
+      ) : null}
+    </div>
+  )
+}
+
 export function DsCard({
   className,
   children,
@@ -158,13 +177,32 @@ export function Bar({
   )
 }
 
-export function EyeButton({ hidden }: { hidden: boolean }) {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-ds-border bg-ds-surface px-3.5 py-2.5 text-[15px] font-medium text-ds-ink">
+export const dsControlClass =
+  "h-10 rounded-xl border border-ds-border bg-ds-surface px-3 text-sm text-ds-ink"
+
+export function EyeButton({
+  hidden,
+  onClick,
+}: {
+  hidden: boolean
+  onClick?: () => void
+}) {
+  const className =
+    "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-ds-border bg-ds-surface px-3.5 py-2.5 text-[15px] font-medium text-ds-ink"
+  const inner = (
+    <>
       <DesignIcon name={hidden ? "eye" : "eyeoff"} size={20} />
       {hidden ? "Mostrar valores" : "Esconder valores"}
-    </span>
+    </>
   )
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {inner}
+      </button>
+    )
+  }
+  return <span className={className}>{inner}</span>
 }
 
 export function IconSquare({ name }: { name: DesignIconName }) {

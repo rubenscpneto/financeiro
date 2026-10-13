@@ -1,103 +1,299 @@
 "use client"
 
+import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  LayoutDashboard,
-  ArrowLeftRight,
-  Tags,
-  PiggyBank,
-  Target,
-  LineChart,
-  LogOut,
-} from "lucide-react"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
+import { useTheme } from "next-themes"
 import { logoutAction } from "@/lib/actions/auth"
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { DesignIcon, type DesignIconName } from "@/components/design/icons"
+import {
+  Avatar,
+  EyeButton,
+  IconBadge,
+} from "@/components/design/primitives"
+import { useHideValues } from "@/components/hide-values-provider"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 
-const NAV = [
-  { href: "/painel", label: "Painel", icon: LayoutDashboard },
-  { href: "/transacoes", label: "Transações", icon: ArrowLeftRight },
-  { href: "/categorias", label: "Categorias", icon: Tags },
-  { href: "/orcamentos", label: "Orçamentos", icon: PiggyBank },
-  { href: "/metas", label: "Metas", icon: Target },
-  { href: "/investimentos", label: "Investimentos", icon: LineChart },
+const MOBILE_NAV: { href?: string; more?: boolean; icon: DesignIconName; label: string }[] =
+  [
+    { href: "/painel", icon: "house", label: "Início" },
+    { href: "/transacoes", icon: "arrows", label: "Extrato" },
+    { href: "/investimentos", icon: "trending", label: "Investir" },
+    { href: "/orcamentos", icon: "target", label: "Planejar" },
+    { more: true, icon: "grid", label: "Mais" },
+  ]
+
+const DESKTOP_NAV: { href: string; icon: DesignIconName; label: string }[] = [
+  { href: "/painel", icon: "house", label: "Início" },
+  { href: "/transacoes", icon: "arrows", label: "Extrato" },
+  { href: "/investimentos", icon: "trending", label: "Investimentos" },
+  { href: "/orcamentos", icon: "target", label: "Planejar gastos" },
 ]
+
+const MORE_NAV: { href: string; icon: DesignIconName; label: string }[] = [
+  { href: "/categorias", icon: "tag", label: "Categorias" },
+  { href: "/metas", icon: "wallet", label: "Metas" },
+]
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+function initialsFrom(label: string) {
+  const parts = label.trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }
+  return label.slice(0, 2).toUpperCase() || "EU"
+}
+
+function firstName(label: string) {
+  return label.split(/[\s@]/)[0] || label
+}
+
+function todayLabel() {
+  const raw = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date())
+  return raw.charAt(0).toLowerCase() + raw.slice(1)
+}
+
+function NavRow({
+  icon,
+  label,
+  active,
+}: {
+  icon: DesignIconName
+  label: string
+  active?: boolean
+}) {
+  return (
+    <span
+      className={cn(
+        "flex w-full items-center gap-3 rounded-[10px] px-3 py-3",
+        active && "bg-ds-accent-soft"
+      )}
+    >
+      <DesignIcon
+        name={icon}
+        size={22}
+        className={active ? "text-ds-accent" : "text-ds-muted"}
+      />
+      <span
+        className={cn(
+          "text-base",
+          active ? "font-semibold text-ds-accent" : "font-medium text-ds-ink"
+        )}
+      >
+        {label}
+      </span>
+    </span>
+  )
+}
 
 export function AppShell({
   children,
   userLabel,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   userLabel: string
 }) {
   const pathname = usePathname()
+  const { hidden, toggle } = useHideValues()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const dark = resolvedTheme === "dark"
+  const greet = pathname === "/painel"
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader className="px-4 py-4">
-          <Link href="/painel" className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Finanças
-            </span>
-            <span className="text-lg font-semibold tracking-tight">Financeiro</span>
-          </Link>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Menu</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {NAV.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      render={<Link href={item.href} />}
-                      isActive={pathname === item.href}
-                      tooltip={item.label}
-                    >
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter className="gap-2 p-4">
-          <p className="truncate px-2 text-xs text-muted-foreground">{userLabel}</p>
-          <form action={logoutAction}>
-            <Button type="submit" variant="outline" className="w-full" size="sm">
-              <LogOut data-icon="inline-start" />
-              Sair
-            </Button>
-          </form>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
-          <Separator orientation="vertical" className="h-4" />
-          <span className="text-sm text-muted-foreground">Gestão financeira pessoal</span>
-        </header>
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="min-h-full bg-ds-bg font-sans text-base text-ds-ink antialiased">
+      <div className="flex min-h-dvh">
+        <aside className="hidden w-[264px] shrink-0 flex-col justify-between border-r border-ds-border bg-ds-surface px-4 py-6 lg:flex">
+          <div className="flex flex-col gap-1">
+            <Link href="/painel" className="mb-5 flex items-center gap-2.5 px-2">
+              <IconBadge
+                name="wallet"
+                tone="hero"
+                size={36}
+                iconSize={20}
+                radius="lg"
+              />
+              <span className="text-[19px] font-semibold text-ds-ink">
+                Financeiro
+              </span>
+            </Link>
+            {DESKTOP_NAV.map((item) => (
+              <Link key={item.href} href={item.href}>
+                <NavRow
+                  icon={item.icon}
+                  label={item.label}
+                  active={isActive(pathname, item.href)}
+                />
+              </Link>
+            ))}
+            <p className="px-3 pb-1.5 pt-5 text-sm font-semibold tracking-[0.06em] text-ds-subtle">
+              MAIS
+            </p>
+            {MORE_NAV.map((item) => (
+              <Link key={item.href} href={item.href}>
+                <NavRow
+                  icon={item.icon}
+                  label={item.label}
+                  active={isActive(pathname, item.href)}
+                />
+              </Link>
+            ))}
+          </div>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 px-1.5">
+              <Avatar initials={initialsFrom(userLabel)} size={40} />
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-semibold text-ds-ink">
+                  {userLabel}
+                </p>
+                <form action={logoutAction}>
+                  <button
+                    type="submit"
+                    className="text-sm font-medium text-ds-accent"
+                  >
+                    Sair
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-start justify-between gap-3 px-5 pt-5 pb-2 lg:px-8">
+            <div className="min-w-0">
+              {greet ? (
+                <>
+                  <p className="text-[28px] leading-tight font-semibold tracking-tight lg:text-[32px]">
+                    Olá, {firstName(userLabel)}
+                  </p>
+                  <p className="mt-1 text-sm text-ds-muted">
+                    Suas finanças · {todayLabel()}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm font-medium text-ds-muted">Financeiro</p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <EyeButton hidden={hidden} onClick={toggle} />
+              <button
+                type="button"
+                onClick={() => setTheme(dark ? "light" : "dark")}
+                className="inline-flex size-11 items-center justify-center rounded-full border border-ds-border bg-ds-surface text-ds-ink"
+                aria-label={dark ? "Usar tema claro" : "Usar tema escuro"}
+              >
+                <DesignIcon name={dark ? "sun" : "moon"} size={20} />
+              </button>
+            </div>
+          </header>
+
+          <main className="flex flex-1 flex-col gap-5 px-5 pt-2 pb-28 lg:px-8 lg:pb-8">
+            {children}
+          </main>
+
+          <nav className="fixed right-0 bottom-0 left-0 z-40 flex items-start justify-between border-t border-ds-border bg-ds-surface px-2 pt-2 pb-7 lg:hidden">
+            {MOBILE_NAV.map((item) => {
+              const on = item.href ? isActive(pathname, item.href) : moreOpen
+              const inner = (
+                <span className="flex w-[72px] flex-col items-center gap-1 pt-0.5">
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full px-[18px] py-1.5",
+                      on && "bg-ds-accent-soft"
+                    )}
+                  >
+                    <DesignIcon
+                      name={item.icon}
+                      size={24}
+                      className={on ? "text-ds-accent" : "text-ds-subtle"}
+                    />
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm",
+                      on
+                        ? "font-semibold text-ds-accent"
+                        : "font-medium text-ds-subtle"
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </span>
+              )
+              if (item.more) {
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setMoreOpen(true)}
+                  >
+                    {inner}
+                  </button>
+                )
+              }
+              return (
+                <Link key={item.href} href={item.href!}>
+                  {inner}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
+      </div>
+
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-3xl border-ds-border bg-ds-surface text-ds-ink"
+        >
+          <SheetHeader>
+            <SheetTitle className="text-ds-ink">Mais</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-1 px-2 pb-6">
+            {MORE_NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMoreOpen(false)}
+              >
+                <NavRow
+                  icon={item.icon}
+                  label={item.label}
+                  active={isActive(pathname, item.href)}
+                />
+              </Link>
+            ))}
+            <button
+              type="button"
+              onClick={() => setTheme(dark ? "light" : "dark")}
+            >
+              <NavRow
+                icon={dark ? "sun" : "moon"}
+                label={dark ? "Tema claro" : "Tema escuro"}
+              />
+            </button>
+            <form action={logoutAction}>
+              <button type="submit" className="w-full">
+                <NavRow icon="logout" label="Sair" />
+              </button>
+            </form>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
   )
 }

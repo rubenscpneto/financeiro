@@ -78,20 +78,8 @@ export default async function TransacoesPage({
       (a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
     )
 
-  const periodLabel = yearMonth
-    ? yearMonth
-    : from && to
-      ? `${from} → ${to}`
-      : "intervalo personalizado"
-
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Transações</h1>
-        <p className="text-sm text-muted-foreground">
-          Operações de {periodLabel}. Filtre por conta, mês ou intervalo.
-        </p>
-      </div>
       <Suspense>
         <TransacoesClient
           transactions={mapped as (Transaction & {

@@ -22,15 +22,5 @@ export default async function MetasPage() {
     current_amount: crypto.decryptNum("current_amount", g.current_amount),
   }))
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Metas</h1>
-        <p className="text-sm text-muted-foreground">
-          Acompanhe objetivos e progresso.
-        </p>
-      </div>
-      <MetasClient goals={mapped as Goal[]} />
-    </div>
-  )
+  return <MetasClient goals={mapped as Goal[]} />
 }

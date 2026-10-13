@@ -154,7 +154,7 @@ export function DesignFrame({
   className?: string
 }) {
   return (
-    <div className={cn(theme === "escuro" && "dark", className)}>
+    <div className={cn(theme === "escuro" ? "dark" : "light", className)}>
       <div className="min-h-full bg-ds-bg font-sans text-base text-ds-ink antialiased">
         {children}
       </div>
