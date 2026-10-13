@@ -1,4 +1,4 @@
-# Production image for self-hosting (Coolify on a VPS).
+# Production image for self-hosting (Docker / Coolify).
 # Vercel deploys are unaffected: Vercel ignores this file and `output: "standalone"`.
 FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat

@@ -1,0 +1,8 @@
+title = "financeiro"
+
+[allowlist]
+description = "Placeholders and lockfile integrity hashes"
+paths = [
+  '''^\.env\.example$''',
+  '''(^|/)package-lock\.json$''',
+]

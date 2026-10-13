@@ -4,8 +4,8 @@
  * Usage (from repo root, with .env.local loaded or env exported):
  *   node --env-file=.env.local scripts/register-pluggy-webhooks.mjs
  *
- * Requires: PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_WEBHOOK_SECRET
- * Optional: WEBHOOK_BASE_URL (default https://financeiro-umber-nine.vercel.app)
+ * Requires: PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_WEBHOOK_SECRET,
+ *           WEBHOOK_BASE_URL (public origin, no trailing slash)
  */
 const PLUGGY_BASE = "https://api.pluggy.ai"
 
@@ -13,13 +13,11 @@ async function main() {
   const clientId = process.env.PLUGGY_CLIENT_ID
   const clientSecret = process.env.PLUGGY_CLIENT_SECRET
   const webhookSecret = process.env.PLUGGY_WEBHOOK_SECRET
-  const base =
-    process.env.WEBHOOK_BASE_URL?.replace(/\/$/, "") ||
-    "https://financeiro-umber-nine.vercel.app"
+  const base = process.env.WEBHOOK_BASE_URL?.replace(/\/$/, "")
 
-  if (!clientId || !clientSecret || !webhookSecret) {
+  if (!clientId || !clientSecret || !webhookSecret || !base) {
     console.error(
-      "Missing PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, or PLUGGY_WEBHOOK_SECRET"
+      "Missing PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_WEBHOOK_SECRET, or WEBHOOK_BASE_URL"
     )
     process.exit(1)
   }

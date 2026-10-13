@@ -22,6 +22,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) for Docker/Coolify.
 
+This repo is public. Do not commit secrets, real statements, or personal data.
+See [SECURITY.md](SECURITY.md).
+
 ## Scripts
 - `npm run dev` / `npm run build` / `npm run start`
 - `npm run lint`
