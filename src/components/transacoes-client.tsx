@@ -4,7 +4,13 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { updateTransactionCategoryAction } from "@/lib/actions/crud"
-import { UNCLASSIFIED_FILTER } from "@/lib/txn-class"
+import {
+  UNCLASSIFIED_FILTER,
+  displayCategoryLabel,
+  matchesFlowFilter,
+  summarizeFlow,
+  type FlowFilter,
+} from "@/lib/txn-class"
 import { EXTRATO_SUMMARY_NOTE } from "@/lib/ui-copy"
 import type { Category, Transaction } from "@/lib/types"
 import { formatDateBR, monthLabelPt, shiftYearMonth } from "@/lib/format"
@@ -40,6 +46,8 @@ type Row = Transaction & {
   _pending?: boolean
   _subLines?: { label: string; amount: number }[]
   _installmentLabel?: string | null
+  _incomeDelta?: number
+  _expenseDelta?: number
   _virouAjuda?: boolean
 }
 
@@ -116,7 +124,7 @@ export function TransacoesClient({
 }) {
   const [pending, start] = useTransition()
   const [qtext, setQtext] = useState("")
-  const [flow, setFlow] = useState<"all" | "out" | "in">("all")
+  const [flow, setFlow] = useState<FlowFilter>("all")
   const [showHidden, setShowHidden] = useState(false)
   const [openLoan, setOpenLoan] = useState<string | null>(null)
   const [writeOff, setWriteOff] = useState<LoanWriteOffTarget | null>(null)
@@ -129,15 +137,41 @@ export function TransacoesClient({
   const filtered = useMemo(() => {
     const q = qtext.trim().toLowerCase()
     return transactions.filter((t) => {
-      if (flow === "out" && Number(t.amount) >= 0 && t._kind !== "expense") {
-        if (t._kind !== "loan" || Number(t.amount) >= 0) return false
+      if (
+        !matchesFlowFilter(
+          {
+            amount: Number(t.amount) || 0,
+            class: {
+              kind: (t._kind as "income") ?? "expense",
+              hide: false,
+              expenseDelta: t._expenseDelta ?? 0,
+              incomeDelta: t._incomeDelta ?? 0,
+            },
+          },
+          flow
+        )
+      ) {
+        return false
       }
-      if (flow === "in" && Number(t.amount) <= 0) return false
       if (!q) return true
       const hay = `${t.description} ${t.merchant ?? ""} ${t.accounts?.name ?? ""} ${t.categories?.name ?? ""}`.toLowerCase()
       return hay.includes(q)
     })
   }, [transactions, qtext, flow])
+
+  const flowSummary = useMemo(() => {
+    if (flow === "all") return summary
+    const sums = summarizeFlow(
+      filtered.map((t) => ({
+        class: {
+          hide: false,
+          incomeDelta: t._incomeDelta ?? 0,
+          expenseDelta: t._expenseDelta ?? 0,
+        },
+      }))
+    )
+    return { ...summary, ...sums }
+  }, [filtered, flow, summary])
 
   const groups = useMemo(() => {
     const map = new Map<string, Row[]>()
@@ -280,13 +314,13 @@ export function TransacoesClient({
           <div>
             <p className="text-sm text-ds-muted">Entrou</p>
             <p className="text-base font-semibold text-ds-pos">
-              <AppMoney value={summary.entrou} sign />
+              <AppMoney value={flowSummary.entrou} sign />
             </p>
           </div>
           <div>
             <p className="text-sm text-ds-muted">Saiu</p>
             <p className="text-base font-semibold">
-              <AppMoney value={-summary.saiu} sign />
+              <AppMoney value={-flowSummary.saiu} sign />
             </p>
           </div>
           <div>
@@ -294,10 +328,10 @@ export function TransacoesClient({
             <p
               className={cn(
                 "text-base font-semibold",
-                summary.sobrou >= 0 ? "text-ds-pos" : "text-ds-danger"
+                flowSummary.sobrou >= 0 ? "text-ds-pos" : "text-ds-danger"
               )}
             >
-              <AppMoney value={summary.sobrou} sign />
+              <AppMoney value={flowSummary.sobrou} sign />
             </p>
           </div>
           <div className="hidden lg:block">
@@ -390,7 +424,7 @@ export function TransacoesClient({
                       </div>
                       <p className="truncate text-sm text-ds-muted">
                         <span className="text-ds-accent">
-                          {t.categories?.name ?? "A classificar"}
+                          {t.categories?.name ?? displayCategoryLabel({ class: { categoryLabel: t.categories?.name } })}
                         </span>
                         {" · "}
                         {t.accounts?.name ?? "Conta"}

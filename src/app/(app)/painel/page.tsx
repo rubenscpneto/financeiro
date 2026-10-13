@@ -11,10 +11,11 @@ import {
 } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
-import { decAccount } from "@/lib/crypto/rows"
+import { decAccount, decPosition } from "@/lib/crypto/rows"
 import { PainelClient } from "@/components/painel-client"
-import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
-import { positionCurrentValue } from "@/lib/investments/value"
+import { currentYearMonth, monthBounds, monthLookbackStart, todayYmd } from "@/lib/format"
+import { titledPosition } from "@/lib/investments/net"
+import { roundCents } from "@/lib/money-math"
 import {
   accountBankById,
   accountIdsForBank,
@@ -43,7 +44,7 @@ export default async function PainelPage({
   const params = await searchParams
   const bank = bankFromParams(params.bank)
   const yearMonth = currentYearMonth()
-  const { start, end: monthEnd } = monthBounds(yearMonth)
+  const { end: monthEnd } = monthBounds(yearMonth)
   const today = todayYmd()
   const end = yearMonth === currentYearMonth() && today < monthEnd ? today : monthEnd
 
@@ -71,7 +72,7 @@ export default async function PainelPage({
 
   const txnFilters = [
     eq(transactions.user_id, userId),
-    gte(transactions.date, start),
+    gte(transactions.date, monthLookbackStart(yearMonth)),
     lte(transactions.date, end),
   ]
   const snapshotFilters = [eq(balanceSnapshots.user_id, userId)]
@@ -114,12 +115,7 @@ export default async function PainelPage({
       .from(transactions)
       .where(and(...txnFilters)),
     db
-      .select({
-        quantity: investmentPositions.quantity,
-        current_price: investmentPositions.current_price,
-        amount_withdrawal: investmentPositions.amount_withdrawal,
-        account_id: investmentPositions.account_id,
-      })
+      .select()
       .from(investmentPositions)
       .innerJoin(accounts, eq(investmentPositions.account_id, accounts.id))
       .where(and(...positionFilters)),
@@ -174,26 +170,21 @@ export default async function PainelPage({
     if (type === "credit_card") creditDebt += amt
   }
   const creditFromTxns = creditDebt < 0 ? Math.abs(creditDebt) : 0
-  const investments = positions.reduce(
-    (s, p) =>
-      s +
-      positionCurrentValue({
-        quantity: crypto.decryptNum("quantity", p.quantity),
-        current_price: crypto.decryptNum("current_price", p.current_price),
-        amount_withdrawal: crypto.decryptNumOpt(
-          "amount_withdrawal",
-          p.amount_withdrawal
-        ),
-      }),
-    0
+  const titles = positions.map((row) =>
+    titledPosition(
+      decPosition(
+        crypto,
+        "investment_positions" in row ? row.investment_positions : row
+      ),
+      today
+    )
   )
+  const investments = roundCents(titles.reduce((s, t) => s + t.net, 0))
 
   let checkingSnap = 0
   let creditSnap = 0
-  let investSnap: number | null = null
   let hasCheckingSnap = false
   let hasCreditSnap = false
-  let hasInvestSnap = false
 
   for (const s of snapshots) {
     const bal = crypto.decryptNum("balance", s.balance)
@@ -203,15 +194,12 @@ export default async function PainelPage({
     } else if (s.source_type === "credit_card") {
       creditSnap += bal
       hasCreditSnap = true
-    } else if (s.source_type === "investment") {
-      investSnap = (investSnap ?? 0) + bal
-      hasInvestSnap = true
     }
   }
 
   const checking = hasCheckingSnap ? checkingSnap : checkingFromTxns
   const creditLiability = hasCreditSnap ? creditSnap : creditFromTxns
-  const investBalance = hasInvestSnap ? (investSnap as number) : investments
+  const investBalance = investments
   const netWorth = checking - creditLiability + investBalance
 
   const catName = new Map(categoryRows.map((c) => [c.id, c]))
@@ -287,7 +275,7 @@ export default async function PainelPage({
     }))
 
   const spentByCat = new Map<string, number>()
-  for (const t of decorated) {
+  for (const t of scopedDecorated) {
     if (t.class.hide || !t.class.countInCategory) continue
     if (!t.class.expenseDelta) continue
     const catId = spendCategoryId(t)

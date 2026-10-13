@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { BankGroup } from "@/lib/banks"
 import { BANK_FILTER_STORAGE_KEY, hideBankFilter } from "@/lib/banks"
@@ -62,13 +62,11 @@ export function BankFilter({
   const pathname = usePathname()
   const params = useSearchParams()
   const current = params.get("bank") ?? ""
-  const restored = useRef(false)
   const hidden = hideBankFilter(pathname, banks.length)
 
   useEffect(() => {
     clearLegacyCookie()
-    if (hidden || restored.current) return
-    restored.current = true
+    if (hidden) return
     const urlBank = params.get("bank")
     if (urlBank) {
       writeSessionBank(urlBank)

@@ -134,7 +134,7 @@ export function reservaLivre(
 
 export function splitReserveNets(
   titles: { net: number; locked: boolean; excludeFromReserve: boolean }[]
-): { liquid: number; locked: number; excluded: number } {
+): { liquid: number; locked: number; excluded: number; preso: number } {
   let liquid = 0
   let locked = 0
   let excluded = 0
@@ -143,10 +143,13 @@ export function splitReserveNets(
     else if (t.locked) locked += t.net
     else liquid += t.net
   }
+  const lockedR = roundCents(locked)
+  const excludedR = roundCents(excluded)
   return {
     liquid: roundCents(liquid),
-    locked: roundCents(locked),
-    excluded: roundCents(excluded),
+    locked: lockedR,
+    excluded: excludedR,
+    preso: roundCents(lockedR + excludedR),
   }
 }
 

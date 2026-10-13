@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { and, eq } from "drizzle-orm"
 import { db } from "@/db"
 import { accounts, profiles } from "@/db/schema"
@@ -35,12 +36,14 @@ export default async function AppLayout({
 
   return (
     <AppProviders>
-      <AppShell
-        userLabel={label}
-        banks={banks.map((b) => ({ key: b.key, name: b.name }))}
-      >
-        {children}
-      </AppShell>
+      <Suspense>
+        <AppShell
+          userLabel={label}
+          banks={banks.map((b) => ({ key: b.key, name: b.name }))}
+        >
+          {children}
+        </AppShell>
+      </Suspense>
     </AppProviders>
   )
 }

@@ -105,13 +105,7 @@ export default async function FaturaPage({
     (s, g) => s + g.items.reduce((ss, i) => ss + Math.abs(i.amount), 0),
     0
   )
-  const snap = selected
-    ? snapRows.find((s) => s.account_id === selected.id)
-    : null
-  const openBalance = snap
-    ? crypto.decryptNum("balance", snap.balance)
-    : itemsNet
-  const currentTotal = snap ? openBalance : itemsNet
+  const currentTotal = itemsNet
   const limit = selected?.extra?.creditLimit ?? 0
   const available =
     selected?.extra?.availableCreditLimit ??

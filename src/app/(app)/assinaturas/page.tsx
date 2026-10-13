@@ -59,6 +59,10 @@ export default async function AssinaturasPage({
         description: d.description,
         account_id: d.account_id,
         accountName: accName.get(d.account_id) ?? "",
+        installment: d.installment,
+        source_type: d.source_type,
+        source_category: d.source_category,
+        is_transfer: d.is_transfer,
       }
     }),
     { primaryAccountIds: primaryAccountIds(banks) }

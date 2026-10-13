@@ -198,4 +198,14 @@ describe("reserva livre", () => {
     assert.equal(split.excluded, 9500)
     assert.equal(reservaLivre(split.liquid + 2000, 400), 6900)
   })
+
+  it("Preso includes locked and Fora-da-reserva nets", () => {
+    const split = splitReserveNets([
+      { net: 5300, locked: false, excludeFromReserve: false },
+      { net: 12000, locked: true, excludeFromReserve: false },
+      { net: 5311.36, locked: true, excludeFromReserve: true },
+    ])
+    assert.equal(split.liquid, 5300)
+    assert.equal(split.preso, 17311.36)
+  })
 })

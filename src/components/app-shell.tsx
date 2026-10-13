@@ -1,10 +1,10 @@
 "use client"
 
-import { Suspense, useEffect, useState, type ReactNode } from "react"
+import { Suspense, useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { BankFilter } from "@/components/bank-filter"
-import type { BankGroup } from "@/lib/banks"
+import { hrefWithBank, type BankGroup } from "@/lib/banks"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { DesignIcon, type DesignIconName } from "@/components/design/icons"
@@ -94,6 +94,7 @@ function todayLabel() {
     weekday: "long",
     day: "numeric",
     month: "long",
+    timeZone: "America/Sao_Paulo",
   }).format(new Date())
   return raw.charAt(0).toLowerCase() + raw.slice(1)
 }
@@ -141,11 +142,18 @@ export function AppShell({
   banks?: Pick<BankGroup, "key" | "name">[]
 }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { hidden, toggle } = useHideValues()
   const { resolvedTheme, setTheme } = useTheme()
   const [moreOpen, setMoreOpen] = useState(false)
-  const dark = resolvedTheme === "dark"
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
+  const dark = isClient && resolvedTheme === "dark"
   const greet = pathname === "/painel"
+  const bank = searchParams.get("bank")
 
   useEffect(() => {
     try {
@@ -162,7 +170,7 @@ export function AppShell({
         <aside className="sticky top-0 hidden h-dvh w-[264px] shrink-0 flex-col border-r border-ds-border bg-ds-surface px-4 py-6 lg:flex">
           <div className="flex min-h-0 flex-1 flex-col justify-between gap-4">
             <div className="flex min-h-0 flex-col gap-1 overflow-y-auto">
-              <Link href="/painel" className="mb-5 flex items-center gap-2.5 px-2">
+              <Link href={hrefWithBank("/painel", bank)} className="mb-5 flex items-center gap-2.5 px-2">
                 <IconBadge
                   name="wallet"
                   tone="hero"
@@ -175,7 +183,7 @@ export function AppShell({
                 </span>
               </Link>
               {DESKTOP_NAV.map((item) => (
-                <Link key={item.href} href={item.href}>
+                <Link key={item.href} href={hrefWithBank(item.href, bank)}>
                   <NavRow
                     icon={item.icon}
                     label={item.label}
@@ -187,7 +195,7 @@ export function AppShell({
                 PLANEJAR
               </p>
               {PLANEJAR_NAV.map((item) => (
-                <Link key={item.href} href={item.href}>
+                <Link key={item.href} href={hrefWithBank(item.href, bank)}>
                   <NavRow
                     icon={item.icon}
                     label={item.label}
@@ -199,7 +207,7 @@ export function AppShell({
                 MAIS
               </p>
               {MORE_NAV.map((item) => (
-                <Link key={item.href} href={item.href}>
+                <Link key={item.href} href={hrefWithBank(item.href, bank)}>
                   <NavRow
                     icon={item.icon}
                     label={item.label}
@@ -310,7 +318,7 @@ export function AppShell({
                 )
               }
               return (
-                <Link key={item.href} href={item.href!}>
+                <Link key={item.href} href={hrefWithBank(item.href!, bank)}>
                   {inner}
                 </Link>
               )
@@ -331,7 +339,7 @@ export function AppShell({
             {MOBILE_MORE.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={hrefWithBank(item.href, bank)}
                 onClick={() => setMoreOpen(false)}
               >
                 <NavRow

@@ -13,6 +13,7 @@ export type LoanGroup = {
   writtenOff: boolean
   writeOffId: string | null
   writeOffDate: string | null
+  accountIds: string[]
 }
 
 export type AdjustmentRow = {
@@ -52,6 +53,7 @@ export function groupLoans<T extends DecoratedTxn<{
   description?: string | null
   merchant?: string | null
   amount: number
+  account_id?: string | null
 }>>(
   txns: T[],
   adjustments: AdjustmentRow[]
@@ -64,6 +66,7 @@ export function groupLoans<T extends DecoratedTxn<{
     const amount = Number(t.amount) || 0
     const date = t.date?.slice(0, 10) ?? ""
     const existing = map.get(key)
+    const accountId = t.account_id ?? ""
     if (!existing) {
       map.set(key, {
         key,
@@ -78,8 +81,12 @@ export function groupLoans<T extends DecoratedTxn<{
         writtenOff: false,
         writeOffId: null,
         writeOffDate: null,
+        accountIds: accountId ? [accountId] : [],
       })
       continue
+    }
+    if (accountId && !existing.accountIds.includes(accountId)) {
+      existing.accountIds.push(accountId)
     }
     if (amount < 0) {
       existing.lent += Math.abs(amount)
@@ -113,6 +120,15 @@ export function groupLoans<T extends DecoratedTxn<{
   return [...map.values()].sort(
     (a, b) => b.remaining - a.remaining || a.person.localeCompare(b.person, "pt-BR")
   )
+}
+
+export function filterLoansByAccountIds(
+  loans: LoanGroup[],
+  accountIds: string[] | null
+): LoanGroup[] {
+  if (accountIds == null) return loans
+  const set = new Set(accountIds)
+  return loans.filter((l) => l.accountIds.some((id) => set.has(id)))
 }
 
 export function receivablesTotal(

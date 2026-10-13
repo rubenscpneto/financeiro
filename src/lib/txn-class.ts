@@ -91,6 +91,14 @@ export function addMonthsYm(isoDate: string, months: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
+export function addMonthsDate(isoDate: string, months: number): string {
+  const [y, m, d] = isoDate.slice(0, 10).split("-").map(Number)
+  const dt = new Date(y, m - 1 + months, 1)
+  const last = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate()
+  const day = Math.min(d || 1, last)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
 function isSamePersonTransfer(text: string) {
   return (
     text.includes("same person transfer") ||
@@ -273,7 +281,7 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
       countInCategory: true,
       pending,
       displayLabel: text.includes("cashback") ? "Cashback" : "Estorno",
-      categoryLabel: t.category_name ?? null,
+      categoryLabel: spendingCategoryLabel(t) ?? "A classificar",
       installmentLabel,
     })
   }
@@ -341,6 +349,7 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
       isIncome: true,
       incomeDelta: amount,
       pending,
+      categoryLabel: spendingCategoryLabel(t) ?? "A classificar",
       installmentLabel,
     })
   }
@@ -368,23 +377,16 @@ export function classifyTransaction(t: ClassifiableTxn): TxnClass {
     expenseDelta: expense,
     countInCategory: expense > 0,
     pending,
-    categoryLabel: spendingCategoryLabel(t),
+    categoryLabel: spendingCategoryLabel(t) ?? "A classificar",
     installmentLabel,
   })
 }
 
-function dueYearMonth(
-  t: ClassifiableTxn,
-  sameDateGroup: boolean,
-  originDate?: string | null
-): string | null {
+function dueYearMonth(t: ClassifiableTxn, originDate?: string | null): string | null {
   if (!t.date) return null
   const parcela = parseInstallment(t.installment)
   if (!parcela) return t.date.slice(0, 7)
-  if (sameDateGroup) {
-    return addMonthsYm(originDate || t.date, parcela.current - 1)
-  }
-  return t.date.slice(0, 7)
+  return addMonthsYm(originDate || t.date, parcela.current - 1)
 }
 
 function inView(dueYm: string | null, opts: DecorateOpts): boolean {
@@ -412,7 +414,7 @@ function stripRefundWords(text: string) {
     .trim()
 }
 
-function installmentGroupKey(t: ClassifiableTxn) {
+export function installmentGroupKey(t: ClassifiableTxn) {
   const parcela = parseInstallment(t.installment)
   if (!parcela) return null
   const desc = norm(t.description)
@@ -446,7 +448,6 @@ export function decorateTransactions<T extends ClassifiableTxn>(
     list.push(row)
     groups.set(key, list)
   }
-  const sameDateKeys = new Set<string>()
   const groupOrigin = new Map<string, string>()
   for (const [key, list] of groups) {
     const dates = list
@@ -454,19 +455,11 @@ export function decorateTransactions<T extends ClassifiableTxn>(
       .filter((d): d is string => Boolean(d))
       .sort()
     if (dates.length) groupOrigin.set(key, dates[0])
-    if (
-      list.length > 1 &&
-      dates.length > 0 &&
-      daysApart(dates[0], dates[dates.length - 1]) <= 10
-    ) {
-      sameDateKeys.add(key)
-    }
   }
 
   for (const row of rows) {
     const key = installmentGroupKey(row)
-    const sameDate = key ? sameDateKeys.has(key) : false
-    const dueYm = dueYearMonth(row, sameDate, key ? groupOrigin.get(key) : null)
+    const dueYm = dueYearMonth(row, key ? groupOrigin.get(key) : null)
     if (!inView(dueYm, opts)) {
       row.class.hide = true
       row.class.expenseDelta = 0
@@ -488,6 +481,54 @@ export function decorateTransactions<T extends ClassifiableTxn>(
       ]
     }
   }
+
+  const projected: DecoratedTxn<T>[] = []
+  for (const [key, list] of groups) {
+    const origin = groupOrigin.get(key)
+    if (!origin) continue
+    const sample = [...list].sort(
+      (a, b) =>
+        (parseInstallment(b.installment)?.current ?? 0) -
+        (parseInstallment(a.installment)?.current ?? 0)
+    )[0]
+    const parcela = parseInstallment(sample.installment)
+    if (!parcela) continue
+    const present = new Set(
+      list
+        .map((r) => parseInstallment(r.installment)?.current)
+        .filter((n): n is number => Boolean(n))
+    )
+    for (let k = 1; k <= parcela.total; k++) {
+      const dueYm = addMonthsYm(origin, k - 1)
+      if (!inView(dueYm, opts)) continue
+      if (present.has(k)) continue
+      const date = addMonthsDate(origin, k - 1)
+      const clone = {
+        ...sample,
+        date,
+        installment: `${k}/${parcela.total}`,
+      }
+      if (sample.id) {
+        ;(clone as { id?: string }).id = `${sample.id}__p${k}`
+      }
+      const classed: DecoratedTxn<T> = {
+        ...clone,
+        class: classifyTransaction(clone),
+      }
+      const remaining = parcela.total - k
+      if (remaining > 0) {
+        classed.class.subLines = [
+          ...classed.class.subLines,
+          {
+            label: `Restante em ${remaining} parcela${remaining === 1 ? "" : "s"}`,
+            amount: 0,
+          },
+        ]
+      }
+      projected.push(classed)
+    }
+  }
+  if (projected.length) rows.push(...projected)
 
   for (const iof of rows) {
     if (iof.class.kind !== "iof" || iof.class.hide) continue
@@ -575,6 +616,21 @@ export function sumSpending<T extends { class: TxnClass }>(rows: T[]): number {
   return rows.reduce((s, t) => (t.class.hide ? s : s + t.class.expenseDelta), 0)
 }
 
+export function displayCategoryLabel(t: {
+  class?: { categoryLabel?: string | null }
+}): string {
+  return t.class?.categoryLabel || "A classificar"
+}
+
+export function isUnclassifiedRow(t: {
+  class?: { categoryLabel?: string | null }
+  user_category_id?: string | null
+}): boolean {
+  if (t.user_category_id) return false
+  const label = t.class?.categoryLabel
+  return !label || label === "A classificar"
+}
+
 export function matchesCategoryFilter(
   t: {
     class: { categoryLabel?: string | null }
@@ -585,9 +641,47 @@ export function matchesCategoryFilter(
 ): boolean {
   if (!filterId) return true
   if (filterId === UNCLASSIFIED_FILTER) {
-    return !t.user_category_id && t.class.categoryLabel === "A classificar"
+    return isUnclassifiedRow(t)
   }
   return t.user_category_id === filterId || (!t.user_category_id && t.category_id === filterId)
+}
+
+export type FlowFilter = "all" | "out" | "in"
+
+const OWN_ACCOUNT_MOVE = new Set([
+  "transfer",
+  "card_bill",
+  "card_bill_hidden",
+  "investment_transfer",
+])
+
+export function matchesFlowFilter(
+  t: {
+    class: Pick<TxnClass, "kind" | "hide" | "expenseDelta" | "incomeDelta">
+    amount: number
+  },
+  flow: FlowFilter
+): boolean {
+  if (flow === "all") return !t.class.hide
+  if (t.class.hide) return false
+  if (OWN_ACCOUNT_MOVE.has(t.class.kind)) return false
+  if (flow === "out") {
+    return t.class.expenseDelta > 0 || (t.class.kind === "loan" && Number(t.amount) < 0)
+  }
+  return t.class.incomeDelta > 0
+}
+
+export function summarizeFlow<
+  T extends { class: Pick<TxnClass, "hide" | "incomeDelta" | "expenseDelta"> },
+>(rows: T[]): { entrou: number; saiu: number; sobrou: number } {
+  let entrou = 0
+  let saiu = 0
+  for (const t of rows) {
+    if (t.class.hide) continue
+    entrou += t.class.incomeDelta
+    saiu += t.class.expenseDelta
+  }
+  return { entrou, saiu, sobrou: entrou - saiu }
 }
 
 /** User override wins; unclassified "A classificar" does not count toward a Pluggy category. */

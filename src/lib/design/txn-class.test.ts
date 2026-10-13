@@ -5,7 +5,12 @@ import {
   UNCLASSIFIED_PIX_MIN,
   classifyTransaction,
   decorateTransactions,
+  displayCategoryLabel,
+  isUnclassifiedRow,
   matchesCategoryFilter,
+  matchesFlowFilter,
+  spendCategoryId,
+  summarizeFlow,
   sumSpending,
 } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
@@ -374,6 +379,7 @@ test("unclassified outgoing Pix at or above the threshold is A classificar even 
     source_type: "checking",
     source_category: "Transfer - PIX",
     is_transfer: true,
+    category_name: "Serviços",
   })
   assert.equal(small.isExpense, true)
   assert.equal(small.categoryLabel !== "A classificar", true)
@@ -436,4 +442,117 @@ test("A classificar is a category filter option", () => {
     matchesCategoryFilter({ class: pix, user_category_id: "loan", category_id: "x" }, UNCLASSIFIED_FILTER),
     false
   )
+})
+
+test("Sept 1/3 projects the current month parcela 2/3 into October spending", () => {
+  const rows = decorateTransactions(
+    [
+      {
+        id: "e1",
+        date: "2026-09-15",
+        account_id: "card",
+        description: "Loja Eletro Teste",
+        amount: -300,
+        installment: "1/3",
+        source_type: "credit_card",
+      },
+    ],
+    { yearMonth: "2026-10" }
+  )
+  const visible = rows.filter((r) => !r.class.hide)
+  assert.equal(sumSpending(rows), 300)
+  assert.equal(visible.length, 1)
+  assert.equal(visible[0].class.installmentLabel, "Parcela 2/3")
+})
+
+test("chip and A classificar filter use the same unclassified predicate", () => {
+  const pharmacy = classifyTransaction({
+    description: "Farmácia",
+    amount: -42.5,
+    source_type: "credit_card",
+    source_category: "Health",
+  })
+  assert.equal(pharmacy.categoryLabel, "A classificar")
+  assert.equal(displayCategoryLabel({ class: pharmacy }), "A classificar")
+  assert.equal(isUnclassifiedRow({ class: pharmacy, user_category_id: null }), true)
+  assert.equal(
+    matchesCategoryFilter(
+      { class: pharmacy, user_category_id: null, category_id: null },
+      UNCLASSIFIED_FILTER
+    ),
+    true
+  )
+  assert.equal(spendCategoryId({ class: pharmacy, category_id: "health" }), null)
+})
+
+test("unclassified spend buckets to A classificar, not Outros", () => {
+  const rows = decorateTransactions(
+    [
+      {
+        id: "p",
+        date: "2026-10-04",
+        description: "Farmácia",
+        amount: -80,
+        source_type: "credit_card",
+      },
+      {
+        id: "pix",
+        date: "2026-10-08",
+        description: "Pix Sicrano Exemplo",
+        amount: -400,
+        source_type: "checking",
+        source_category: "Transfer - PIX",
+      },
+    ],
+    { yearMonth: "2026-10" }
+  )
+  const keys = rows
+    .filter((t) => !t.class.hide && t.class.countInCategory && t.class.expenseDelta)
+    .map((t) => spendCategoryId(t) ?? t.class.categoryLabel ?? "Outros")
+  assert.deepEqual(keys, ["A classificar", "A classificar"])
+})
+
+test("Saídas excludes own-account transfers and summary follows the filter", () => {
+  const rows = decorateTransactions(
+    [
+      {
+        id: "food",
+        date: "2026-10-02",
+        description: "Padaria",
+        amount: -38.9,
+        source_type: "checking",
+        source_category: "Food",
+        category_name: "Alimentação",
+      },
+      {
+        id: "own",
+        date: "2026-10-03",
+        description: "Pix",
+        amount: -800,
+        source_type: "checking",
+        source_category: "Same Person Transfer",
+        is_transfer: true,
+      },
+      {
+        id: "salary",
+        date: "2026-10-05",
+        description: "Salário",
+        amount: 7500,
+        source_type: "checking",
+      },
+    ],
+    { yearMonth: "2026-10" }
+  )
+  const out = rows.filter((t) => matchesFlowFilter(t, "out"))
+  assert.equal(out.some((t) => t.id === "own"), false)
+  assert.equal(out.some((t) => t.id === "food"), true)
+  const outSum = summarizeFlow(out)
+  assert.equal(outSum.saiu, 38.9)
+  assert.equal(outSum.entrou, 0)
+  const inn = rows.filter((t) => matchesFlowFilter(t, "in"))
+  assert.equal(inn.some((t) => t.id === "salary"), true)
+  assert.equal(inn.some((t) => t.id === "own"), false)
+  const inSum = summarizeFlow(inn)
+  assert.equal(inSum.entrou, 7500)
+  assert.equal(inSum.saiu, 0)
 })

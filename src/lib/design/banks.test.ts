@@ -10,12 +10,13 @@ import {
   groupAccountsByBank,
   bankSyncStatus,
   hideBankFilter,
+  hrefWithBank,
   pickBalanceAccountIds,
   resolveBank,
 } from "../banks.ts"
 import { decorateTransactions } from "../txn-class.ts"
 import { categoryLabelPt } from "../pluggy-categories-pt.ts"
-import { monthLabelPt } from "../format.ts"
+import { currentYearMonth, monthLabelPt, todayYmd } from "../format.ts"
 
 test("MeuPluggy is never a bank; COMPE 336 and C6 merge into C6", () => {
   const groups = groupAccountsByBank([
@@ -168,6 +169,10 @@ test("month labels are 'Outubro de 2026'", () => {
   assert.equal(monthLabelPt("2026-10"), "Outubro de 2026")
 })
 
+test("currentYearMonth uses America/Sao_Paulo like todayYmd", () => {
+  assert.equal(currentYearMonth(), todayYmd().slice(0, 7))
+})
+
 test("bank filter URL is the only server source; empty is Todos", () => {
   assert.equal(bankFromParams("c6"), "c6")
   assert.equal(bankFromParams("todos"), null)
@@ -182,6 +187,16 @@ test("bank chips hide on Orçamentos and Metas and when only one bank", () => {
   assert.equal(hideBankFilter("/painel", 3), false)
   assert.equal(hideBankFilter("/transacoes", 2), false)
   assert.equal(hideBankFilter("/painel", 1), true)
+})
+
+test("nav href keeps the bank query", () => {
+  assert.equal(hrefWithBank("/transacoes", "nubank"), "/transacoes?bank=nubank")
+  assert.equal(
+    hrefWithBank("/transacoes?mes=2026-10", "itaú"),
+    "/transacoes?mes=2026-10&bank=ita%C3%BA"
+  )
+  assert.equal(hrefWithBank("/painel", null), "/painel")
+  assert.equal(hrefWithBank("/metas", "nubank"), "/metas")
 })
 
 test("headline suffix is ' no C6'", () => {

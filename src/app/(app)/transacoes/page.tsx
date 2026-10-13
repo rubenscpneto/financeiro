@@ -6,7 +6,7 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount, decAdjustment, decTransaction } from "@/lib/crypto/rows"
 import { TransacoesClient } from "@/components/transacoes-client"
-import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
+import { currentYearMonth, monthBounds, monthLookbackStart, todayYmd } from "@/lib/format"
 import {
   accountBankById,
   accountIdsForBank,
@@ -20,11 +20,17 @@ import {
 import {
   UNCLASSIFIED_FILTER,
   decorateTransactions,
+  displayCategoryLabel,
   matchesCategoryFilter,
   sumSpending,
 } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
-import { groupLoans, receivablesTotal, type AdjustmentRow } from "@/lib/loans"
+import {
+  filterLoansByAccountIds,
+  groupLoans,
+  receivablesTotal,
+  type AdjustmentRow,
+} from "@/lib/loans"
 import type { Category, Transaction } from "@/lib/types"
 
 export default async function TransacoesPage({
@@ -43,10 +49,18 @@ export default async function TransacoesPage({
 
   let from = params.from
   let to = params.to
+  let decorateFrom = from
+  let decorateTo = to
   if (yearMonth) {
     const bounds = monthBounds(yearMonth)
-    from = bounds.start
-    to = yearMonth === currentYearMonth() ? today : bounds.end
+    decorateFrom = bounds.start
+    decorateTo = yearMonth === currentYearMonth() ? today : bounds.end
+    from = monthLookbackStart(yearMonth)
+    to = decorateTo
+  } else if (from) {
+    decorateFrom = from
+    decorateTo = to
+    from = monthLookbackStart(from.slice(0, 7))
   }
 
   const [accountRows, categoryRows, adjRows] = await Promise.all([
@@ -138,7 +152,7 @@ export default async function TransacoesPage({
       dedupeTransactions(txnRows.map(mapRow), {
         primaryAccountIds: primaryAccountIds(banks),
       }),
-      { yearMonth, from, to }
+      { yearMonth, from: decorateFrom, to: decorateTo }
     ),
     {
       filteredBankKey: bank,
@@ -156,8 +170,8 @@ export default async function TransacoesPage({
     (a) =>
       a.kind === "family_help" &&
       !a.undone_at &&
-      (!from || a.date >= from) &&
-      (!to || a.date <= to)
+      (!decorateFrom || a.date >= decorateFrom) &&
+      (!decorateTo || a.date <= decorateTo)
   )
   const helpSpend = helpAdj.reduce((s, a) => s + Math.abs(a.amount), 0)
 
@@ -189,18 +203,16 @@ export default async function TransacoesPage({
     )
     return {
       ...t,
-      categories: t.category_name
-        ? {
-            name: categoryLabelPt(t.class.categoryLabel ?? t.category_name),
-          }
-        : t.class.categoryLabel
-          ? { name: t.class.categoryLabel }
-          : null,
+      categories: {
+        name: categoryLabelPt(displayCategoryLabel(t)),
+      },
       _displayLabel: t.class.displayLabel,
       _kind: t.class.kind,
       _pending: t.class.pending,
       _subLines: t.class.subLines,
       _installmentLabel: t.class.installmentLabel,
+      _incomeDelta: t.class.incomeDelta,
+      _expenseDelta: t.class.expenseDelta,
       _virouAjuda: Boolean(writeOff),
     }
   })
@@ -229,7 +241,10 @@ export default async function TransacoesPage({
     }),
     {}
   )
-  const loans = groupLoans(loanDecorated, decodedAdj)
+  const loans = filterLoansByAccountIds(
+    groupLoans(loanDecorated, decodedAdj),
+    bankIds
+  )
 
   const displayCategories = (categoryRows as Category[]).map((c) => ({
     ...c,
@@ -248,12 +263,14 @@ export default async function TransacoesPage({
             _pending?: boolean
             _subLines?: { label: string; amount: number }[]
             _installmentLabel?: string | null
+            _incomeDelta?: number
+            _expenseDelta?: number
             _virouAjuda?: boolean
           })[]}
           categories={displayCategories}
           yearMonth={yearMonth}
-          from={from ?? ""}
-          to={to ?? ""}
+          from={decorateFrom ?? ""}
+          to={decorateTo ?? ""}
           summary={{
             entrou,
             saiu,

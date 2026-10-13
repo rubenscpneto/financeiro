@@ -1,7 +1,9 @@
 import {
   parseInstallment,
   addMonthsYm,
+  addMonthsDate,
   classifyTransaction,
+  installmentGroupKey,
   type ClassifiableTxn,
 } from "./txn-class.ts"
 import { closeAndDueDays } from "./account-meta.ts"
@@ -111,6 +113,7 @@ export function itemsForCycle<T extends ClassifiableTxn & {
   dueDay: number
 ): CycleItem[] {
   const out: CycleItem[] = []
+  const groups = new Map<string, T[]>()
   for (const t of txns) {
     if (t.account_id !== accountId) continue
     const date = t.date?.slice(0, 10)
@@ -118,28 +121,62 @@ export function itemsForCycle<T extends ClassifiableTxn & {
     const kind = t.class?.kind ?? classifyTransaction(t).kind
     if (kind === "card_bill" || kind === "card_bill_hidden") continue
     const parcela = parseInstallment(t.installment)
-    const baseCycle = cycleForDate(date, closeDay, dueDay)
-    let dueYm = baseCycle.dueYm
-    if (parcela) {
-      dueYm = addMonthsYm(baseCycle.dueYm, parcela.current - 1)
+    if (!parcela) {
+      const baseCycle = cycleForDate(date, closeDay, dueDay)
+      if (baseCycle.dueYm !== cycle.dueYm) continue
+      const amount = Number(t.amount) || 0
+      out.push({
+        id: t.id,
+        date,
+        name: t.description ?? "Compra",
+        amount,
+        category: t.category_name ?? null,
+        installmentLabel: null,
+        installmentCurrent: null,
+        installmentTotal: null,
+        remainingAfter: 0,
+        subLine: null,
+        isRefunded: false,
+      })
+      continue
     }
-    if (dueYm !== cycle.dueYm) continue
-    const amount = Number(t.amount) || 0
-    out.push({
-      id: t.id,
-      date,
-      name: t.description ?? "Compra",
-      amount,
-      category: t.category_name ?? null,
-      installmentLabel: parcela
-        ? `Parcela ${parcela.current} de ${parcela.total}`
-        : null,
-      installmentCurrent: parcela?.current ?? null,
-      installmentTotal: parcela?.total ?? null,
-      remainingAfter: parcela ? parcela.total - parcela.current : 0,
-      subLine: null,
-      isRefunded: false,
-    })
+    const key = installmentGroupKey(t)
+    if (!key) continue
+    const list = groups.get(key) ?? []
+    list.push(t)
+    groups.set(key, list)
+  }
+  for (const list of groups.values()) {
+    const dates = list
+      .map((r) => r.date?.slice(0, 10))
+      .filter((d): d is string => Boolean(d))
+      .sort()
+    const origin = dates[0]
+    if (!origin) continue
+    const sample = [...list].sort(
+      (a, b) =>
+        (parseInstallment(b.installment)?.current ?? 0) -
+        (parseInstallment(a.installment)?.current ?? 0)
+    )[0]
+    const parcela = parseInstallment(sample.installment)
+    if (!parcela) continue
+    for (let k = 1; k <= parcela.total; k++) {
+      const sched = addMonthsDate(origin, k - 1)
+      if (cycleForDate(sched, closeDay, dueDay).dueYm !== cycle.dueYm) continue
+      out.push({
+        id: `${sample.id}-k${k}`,
+        date: sched,
+        name: sample.description ?? "Compra",
+        amount: Number(sample.amount) || 0,
+        category: sample.category_name ?? null,
+        installmentLabel: `Parcela ${k} de ${parcela.total}`,
+        installmentCurrent: k,
+        installmentTotal: parcela.total,
+        remainingAfter: parcela.total - k,
+        subLine: null,
+        isRefunded: false,
+      })
+    }
   }
   return out.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name))
 }
@@ -159,41 +196,53 @@ export function futureInstallments<T extends {
   dueDay: number
 ): { dueYm: string; items: CycleItem[] }[] {
   const byYm = new Map<string, CycleItem[]>()
-  const seen = new Map<string, T>()
+  const groups = new Map<string, T[]>()
   for (const t of txns) {
     if (t.account_id !== accountId) continue
     const parcela = parseInstallment(t.installment)
     if (!parcela) continue
     const date = t.date?.slice(0, 10)
     if (!date) continue
-    const key = `${(t.description ?? "").replace(/\d+\s*\/\s*\d+/g, "")}|${parcela.total}`
-    const prev = seen.get(key)
-    if (prev && (prev.date ?? "") > date) continue
-    seen.set(key, t)
+    const key = installmentGroupKey(t)
+    if (!key) continue
+    const list = groups.get(key) ?? []
+    list.push(t)
+    groups.set(key, list)
   }
-  for (const t of seen.values()) {
-    const parcela = parseInstallment(t.installment)
+  for (const list of groups.values()) {
+    const dates = list
+      .map((r) => r.date?.slice(0, 10))
+      .filter((d): d is string => Boolean(d))
+      .sort()
+    const origin = dates[0]
+    if (!origin) continue
+    const sample = [...list].sort(
+      (a, b) =>
+        (parseInstallment(b.installment)?.current ?? 0) -
+        (parseInstallment(a.installment)?.current ?? 0)
+    )[0]
+    const parcela = parseInstallment(sample.installment)
     if (!parcela) continue
-    const date = t.date!.slice(0, 10)
-    const base = cycleForDate(date, closeDay, dueDay)
-    for (let k = parcela.current + 1; k <= parcela.total; k++) {
-      const dueYm = addMonthsYm(base.dueYm, k - parcela.current)
+    for (let k = 1; k <= parcela.total; k++) {
+      const sched = addMonthsDate(origin, k - 1)
+      const dueYm = cycleForDate(sched, closeDay, dueDay).dueYm
       if (dueYm <= afterDueYm) continue
-      const list = byYm.get(dueYm) ?? []
-      list.push({
-        id: `${t.id}-${k}`,
-        date,
-        name: t.description ?? "Parcela",
-        amount: Number(t.amount) || 0,
+      const remaining = parcela.total - k + 1
+      const items = byYm.get(dueYm) ?? []
+      items.push({
+        id: `${sample.id}-${k}`,
+        date: sched,
+        name: sample.description ?? "Parcela",
+        amount: Number(sample.amount) || 0,
         category: null,
         installmentLabel: `Parcela ${k} de ${parcela.total}`,
         installmentCurrent: k,
         installmentTotal: parcela.total,
-        remainingAfter: parcela.total - k + 1,
-        subLine: `faltam ${parcela.total - k + 1} ×`,
+        remainingAfter: remaining,
+        subLine: `faltam ${remaining} ×`,
         isRefunded: false,
       })
-      byYm.set(dueYm, list)
+      byYm.set(dueYm, items)
     }
   }
   return [...byYm.entries()]

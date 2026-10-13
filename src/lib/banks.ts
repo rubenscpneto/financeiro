@@ -440,6 +440,26 @@ export function hideBankFilter(pathname: string, bankCount: number): boolean {
   )
 }
 
+export function hrefWithBank(
+  href: string,
+  bank: string | null | undefined
+): string {
+  const [pathAndQuery, hash] = href.split("#")
+  const pathname = (pathAndQuery.split("?")[0] || pathAndQuery)
+  const dropBank = HIDE_BANK_FILTER_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  )
+  if (dropBank || !bank) {
+    return href
+  }
+  const search = pathAndQuery.includes("?")
+    ? pathAndQuery.slice(pathAndQuery.indexOf("?") + 1)
+    : ""
+  const q = new URLSearchParams(search)
+  q.set("bank", bank)
+  return `${pathname}?${q.toString()}${hash ? `#${hash}` : ""}`
+}
+
 export function primaryAccountIds(groups: BankGroup[]): Set<string> {
   return new Set(groups.flatMap((g) => g.primaryAccountIds))
 }

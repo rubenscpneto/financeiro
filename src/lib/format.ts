@@ -20,10 +20,15 @@ export function formatDateBR(isoDate: string) {
   return `${d}/${m}/${y}`
 }
 
-export function currentYearMonth(date = new Date()) {
+export function currentYearMonth(date?: Date) {
+  if (!date) return todayYmd().slice(0, 7)
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, "0")
   return `${y}-${m}`
+}
+
+export function monthLookbackStart(yearMonth: string, months = 18) {
+  return `${shiftYearMonth(yearMonth, -months)}-01`
 }
 
 export function monthBounds(yearMonth: string) {

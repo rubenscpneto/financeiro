@@ -86,17 +86,14 @@ function addDays(iso: string, days: number) {
 const AI_NAMES = /chatgpt|openai|cursor|claude|anthropic|gemini|copilot|midjourney/
 
 export function detectRecurrences(
-  txns: {
+  txns: (ClassifiableTxn & {
     id: string
     date: string
-    amount: number
-    merchant?: string | null
-    description?: string | null
     accountName?: string | null
-  }[],
+  })[],
   asOf: string
 ): { series: RecurrenceSeries[]; warnings: RecurrenceWarning[]; ended: RecurrenceSeries[] } {
-  const expenses = txns.filter((t) => t.amount < 0)
+  const expenses = txns.filter((t) => isRecurringEligible(t))
   const byMerchant = new Map<string, RecurrenceCharge[]>()
   for (const t of expenses) {
     const name = merchantName(t)
@@ -217,9 +214,29 @@ function similarAmount(a: number, b: number) {
   return Math.abs(a - b) / Math.max(a, b, 0.01) <= 0.1
 }
 
+function isGroceryOrFood(t: ClassifiableTxn) {
+  const text = [t.description, t.merchant, t.source_category, t.category_name, t.user_category_name]
+    .map((v) =>
+      (v ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+    )
+    .join(" ")
+  if (
+    /\b(mercado|supermercado|padaria|padarias|acougue|hortifruti|ifood|rappi|grocery|groceries|supermarket|atacadista|atacado)\b/.test(
+      text
+    )
+  ) {
+    return true
+  }
+  return /\b(food|alimentacao|grocery|groceries|mercado|restaurant|restaurante)\b/.test(text)
+}
+
 function isRecurringEligible(t: ClassifiableTxn) {
   if ((Number(t.amount) || 0) >= 0) return false
   if (parseInstallment(t.installment)) return false
+  if (isGroceryOrFood(t)) return false
   const cls = classifyTransaction(t)
   if (
     cls.kind === "iof" ||

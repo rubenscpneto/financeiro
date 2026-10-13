@@ -149,14 +149,8 @@ export function InvestimentosClient({
               />
               <div
                 className="bg-ds-warn"
-                style={{ width: `${(locked / total) * 100}%` }}
+                style={{ width: `${((locked + excluded) / total) * 100}%` }}
               />
-              {excluded > 0 ? (
-                <div
-                  className="bg-ds-muted"
-                  style={{ width: `${(excluded / total) * 100}%` }}
-                />
-              ) : null}
             </div>
             <div className="flex flex-wrap justify-between gap-3 text-sm">
               <p>
@@ -169,19 +163,10 @@ export function InvestimentosClient({
               <p>
                 Preso{" "}
                 <span className="whitespace-nowrap font-semibold">
-                  {brl(locked, hidden)}
+                  {brl(locked + excluded, hidden)}
                 </span>{" "}
-                · {((locked / total) * 100).toFixed(1)}%
+                · {(((locked + excluded) / total) * 100).toFixed(1)}%
               </p>
-              {excluded > 0 ? (
-                <p>
-                  Fora da reserva{" "}
-                  <span className="whitespace-nowrap font-semibold">
-                    {brl(excluded, hidden)}
-                  </span>{" "}
-                  · {((excluded / total) * 100).toFixed(1)}%
-                </p>
-              ) : null}
             </div>
           </DsCard>
 
