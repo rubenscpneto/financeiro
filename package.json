@@ -6,20 +6,25 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate": "drizzle-kit migrate",
+    "db:import-users": "tsx scripts/import-legacy-users.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@supabase/ssr": "^0.12.0",
-    "@supabase/supabase-js": "^2.110.2",
+    "@better-auth/drizzle-adapter": "^1.7.7",
     "@zip.js/zip.js": "^2.8.26",
+    "bcryptjs": "^3.0.3",
+    "better-auth": "^1.7.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "drizzle-orm": "^0.45.4",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
     "next-themes": "^0.4.6",
     "pdf-parse": "^2.4.5",
+    "postgres": "^3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.0",
@@ -31,13 +36,16 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

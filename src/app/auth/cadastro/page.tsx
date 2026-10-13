@@ -1,5 +1,11 @@
-import { Suspense } from "react"
-import { SignupForm } from "@/components/auth-forms"
+import Link from "next/link"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 export default function CadastroPage() {
   return (
@@ -10,9 +16,22 @@ export default function CadastroPage() {
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Financeiro</h1>
       </div>
-      <Suspense>
-        <SignupForm />
-      </Suspense>
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Cadastro desabilitado</CardTitle>
+          <CardDescription>
+            Novas contas não podem ser criadas neste aplicativo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-sm text-muted-foreground">
+            Já tem conta?{" "}
+            <Link href="/auth/login" className="text-foreground underline">
+              Entrar
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
     </div>
   )
 }

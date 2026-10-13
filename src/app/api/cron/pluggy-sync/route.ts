@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { runPluggySync } from "@/lib/pluggy/sync"
-import { createAdminClient } from "@/lib/supabase-admin"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
@@ -28,8 +27,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const supabase = createAdminClient()
-    const result = await runPluggySync(supabase, userId)
+    const result = await runPluggySync(userId)
     if (result.error) {
       return NextResponse.json(result, { status: 500 })
     }

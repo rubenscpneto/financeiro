@@ -8,9 +8,6 @@ RUN npm ci
 
 FROM node:22-alpine AS build
 WORKDIR /app
-# NEXT_PUBLIC_* values are inlined at build time, so they must be build args.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_SITE_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
@@ -18,12 +15,19 @@ COPY . .
 RUN npm run build
 
 FROM node:22-alpine AS runner
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat su-exec
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+ENV STORAGE_DIR=/data/statements
+RUN mkdir -p /data/statements && chown node:node /data/statements
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
-USER node
+COPY --from=build --chown=node:node /app/drizzle ./drizzle
+COPY --from=build --chown=node:node /app/scripts/migrate.mjs ./scripts/migrate.mjs
+COPY --from=deps --chown=node:node /app/node_modules/drizzle-orm ./node_modules/drizzle-orm
+COPY --from=deps --chown=node:node /app/node_modules/postgres ./node_modules/postgres
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 EXPOSE 3000
-CMD ["node", "server.js"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

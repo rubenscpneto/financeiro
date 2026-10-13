@@ -1,5 +1,16 @@
 import { Suspense } from "react"
-import { createClient } from "@/lib/server"
+import { and, eq, gte, lte } from "drizzle-orm"
+import { db } from "@/db"
+import {
+  accounts,
+  balanceSnapshots,
+  budgets,
+  categories,
+  goals,
+  investmentPositions,
+  transactions,
+} from "@/db/schema"
+import { requireUserOrRedirect } from "@/lib/auth-session"
 import { PainelClient } from "@/components/painel-client"
 import { PainelAccountFilter } from "@/components/painel-account-filter"
 import { currentYearMonth, monthBounds } from "@/lib/format"
@@ -11,79 +22,118 @@ export default async function PainelPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>
 }) {
+  const { userId } = await requireUserOrRedirect()
   const params = await searchParams
   const accountId = params.account_id || null
   const yearMonth = currentYearMonth()
   const { start, end } = monthBounds(yearMonth)
-  const supabase = await createClient()
 
-  let txnsQuery = supabase
-    .from("transactions")
-    .select("date, amount, category_id, account_id, is_transfer, source_type")
-    .gte("date", start)
-    .lte("date", end)
-
-  let snapshotsQuery = supabase
-    .from("balance_snapshots")
-    .select("account_id, source_type, balance")
-
-  let positionsQuery = supabase
-    .from("investment_positions")
-    .select("quantity, current_price, amount_withdrawal, account_id, accounts!inner(type)")
-    .eq("is_active", true)
-    .eq("accounts.type", "investment")
-
-  let allTxnsQuery = supabase
-    .from("transactions")
-    .select("amount, source_type, account_id")
+  const txnFilters = [
+    eq(transactions.user_id, userId),
+    gte(transactions.date, start),
+    lte(transactions.date, end),
+  ]
+  const snapshotFilters = [eq(balanceSnapshots.user_id, userId)]
+  const positionFilters = [
+    eq(investmentPositions.user_id, userId),
+    eq(investmentPositions.is_active, true),
+    eq(accounts.type, "investment"),
+  ]
+  const allTxnFilters = [eq(transactions.user_id, userId)]
 
   if (accountId) {
-    txnsQuery = txnsQuery.eq("account_id", accountId)
-    snapshotsQuery = snapshotsQuery.eq("account_id", accountId)
-    positionsQuery = positionsQuery.eq("account_id", accountId)
-    allTxnsQuery = allTxnsQuery.eq("account_id", accountId)
+    txnFilters.push(eq(transactions.account_id, accountId))
+    snapshotFilters.push(eq(balanceSnapshots.account_id, accountId))
+    positionFilters.push(eq(investmentPositions.account_id, accountId))
+    allTxnFilters.push(eq(transactions.account_id, accountId))
   }
 
   const [
-    { data: txns },
-    { data: positions },
-    { data: budgets },
-    { data: goals },
-    { data: categories },
-    { data: snapshots },
-    { data: accounts },
-    { data: allTxns },
+    txns,
+    positions,
+    budgetRowsRaw,
+    goalRowsRaw,
+    categoryRows,
+    snapshots,
+    accountRows,
+    allTxns,
   ] = await Promise.all([
-    txnsQuery,
-    positionsQuery,
-    supabase
-      .from("budgets")
-      .select("*, categories(name)")
-      .eq("year_month", yearMonth),
-    supabase.from("goals").select("*").eq("is_archived", false).limit(5),
-    supabase.from("categories").select("id, name, color"),
-    snapshotsQuery,
-    supabase
-      .from("accounts")
-      .select("*")
-      .eq("is_active", true)
-      .order("name"),
-    allTxnsQuery,
+    db
+      .select({
+        date: transactions.date,
+        amount: transactions.amount,
+        category_id: transactions.category_id,
+        account_id: transactions.account_id,
+        is_transfer: transactions.is_transfer,
+        source_type: transactions.source_type,
+      })
+      .from(transactions)
+      .where(and(...txnFilters)),
+    db
+      .select({
+        quantity: investmentPositions.quantity,
+        current_price: investmentPositions.current_price,
+        amount_withdrawal: investmentPositions.amount_withdrawal,
+        account_id: investmentPositions.account_id,
+      })
+      .from(investmentPositions)
+      .innerJoin(accounts, eq(investmentPositions.account_id, accounts.id))
+      .where(and(...positionFilters)),
+    db
+      .select({
+        category_id: budgets.category_id,
+        limit_amount: budgets.limit_amount,
+        category_name: categories.name,
+      })
+      .from(budgets)
+      .leftJoin(categories, eq(budgets.category_id, categories.id))
+      .where(and(eq(budgets.user_id, userId), eq(budgets.year_month, yearMonth))),
+    db
+      .select()
+      .from(goals)
+      .where(and(eq(goals.user_id, userId), eq(goals.is_archived, false)))
+      .limit(5),
+    db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        color: categories.color,
+      })
+      .from(categories)
+      .where(eq(categories.user_id, userId)),
+    db
+      .select({
+        account_id: balanceSnapshots.account_id,
+        source_type: balanceSnapshots.source_type,
+        balance: balanceSnapshots.balance,
+      })
+      .from(balanceSnapshots)
+      .where(and(...snapshotFilters)),
+    db
+      .select()
+      .from(accounts)
+      .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true)))
+      .orderBy(accounts.name),
+    db
+      .select({
+        amount: transactions.amount,
+        source_type: transactions.source_type,
+        account_id: transactions.account_id,
+      })
+      .from(transactions)
+      .where(and(...allTxnFilters)),
   ])
 
   let checkingFromTxns = 0
   let creditDebt = 0
-  for (const t of allTxns ?? []) {
+  for (const t of allTxns) {
     const type = t.source_type
     const amt = Number(t.amount)
     if (type === "checking") checkingFromTxns += amt
     if (type === "credit_card") creditDebt += amt
   }
   const creditFromTxns = creditDebt < 0 ? Math.abs(creditDebt) : 0
-  const investments = (positions ?? []).reduce(
-    (s, p) => s + positionCurrentValue(p),
-    0
-  )
+  const investments = positions.reduce((s, p) => s + positionCurrentValue(p), 0)
 
   let checkingSnap = 0
   let creditSnap = 0
@@ -92,7 +142,7 @@ export default async function PainelPage({
   let hasCreditSnap = false
   let hasInvestSnap = false
 
-  for (const s of snapshots ?? []) {
+  for (const s of snapshots) {
     const bal = Number(s.balance)
     if (s.source_type === "checking") {
       checkingSnap += bal
@@ -116,7 +166,7 @@ export default async function PainelPage({
   const byDay = new Map<string, { entradas: number; saidas: number }>()
   const byCat = new Map<string, number>()
 
-  for (const t of txns ?? []) {
+  for (const t of txns) {
     if (t.is_transfer) continue
     const amt = Number(t.amount)
     const day = t.date.slice(8, 10)
@@ -138,7 +188,7 @@ export default async function PainelPage({
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, v]) => ({ day, ...v }))
 
-  const catName = new Map((categories ?? []).map((c) => [c.id, c]))
+  const catName = new Map(categoryRows.map((c) => [c.id, c]))
   const topCategories = [...byCat.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
@@ -149,7 +199,7 @@ export default async function PainelPage({
     }))
 
   const spentByCat = new Map<string, number>()
-  for (const t of txns ?? []) {
+  for (const t of txns) {
     if (t.is_transfer || !t.category_id) continue
     const amt = Number(t.amount)
     if (amt >= 0) continue
@@ -159,14 +209,13 @@ export default async function PainelPage({
     )
   }
 
-  const budgetRows = (budgets ?? []).map((b) => ({
-    name:
-      (b.categories as unknown as { name: string } | null)?.name ?? "Categoria",
+  const budgetRows = budgetRowsRaw.map((b) => ({
+    name: b.category_name ?? "Categoria",
     spent: spentByCat.get(b.category_id) ?? 0,
     limit: Number(b.limit_amount),
   }))
 
-  const goalRows = (goals ?? []).map((g) => ({
+  const goalRows = goalRowsRaw.map((g) => ({
     name: g.name,
     current: Number(g.current_amount),
     target: Number(g.target_amount),
@@ -182,7 +231,7 @@ export default async function PainelPage({
           </p>
         </div>
         <Suspense>
-          <PainelAccountFilter accounts={(accounts ?? []) as Account[]} />
+          <PainelAccountFilter accounts={accountRows as Account[]} />
         </Suspense>
       </div>
       <PainelClient

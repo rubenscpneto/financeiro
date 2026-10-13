@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation"
-import { createClient } from "@/lib/server"
+import { eq } from "drizzle-orm"
+import { db } from "@/db"
+import { profiles } from "@/db/schema"
+import { requireUserOrRedirect } from "@/lib/auth-session"
 import { AppShell } from "@/components/app-shell"
 
 export default async function AppLayout({
@@ -7,20 +9,15 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getClaims()
-  if (!data?.claims) redirect("/auth/login")
+  const { userId, user } = await requireUserOrRedirect()
 
-  const userId = data.claims.sub as string
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("nome")
-    .eq("id", userId)
-    .maybeSingle()
+  const [profile] = await db
+    .select({ nome: profiles.nome })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1)
 
-  const label =
-    profile?.nome ||
-    (typeof data.claims.email === "string" ? data.claims.email : "Usuário")
+  const label = profile?.nome || user.email || "Usuário"
 
   return <AppShell userLabel={label}>{children}</AppShell>
 }
