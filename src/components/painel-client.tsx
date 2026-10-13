@@ -6,7 +6,7 @@ import { AppMoney } from "@/components/app-money"
 import { brl } from "@/components/design/money-display"
 import { useHideValues } from "@/components/hide-values-provider"
 import { budgetStatus } from "@/lib/design/budget-status"
-import { currentYearMonth } from "@/lib/format"
+import { currentYearMonth, monthLabelPt } from "@/lib/format"
 
 export function PainelClient({
   netWorth,
@@ -19,6 +19,8 @@ export function PainelClient({
   topCategories,
   budgets,
   goals,
+  bankName = null,
+  bankSuffix = "",
 }: {
   netWorth: number
   checking: number
@@ -30,23 +32,25 @@ export function PainelClient({
   topCategories: { name: string; value: number; color?: string | null }[]
   budgets: { name: string; spent: number; limit: number }[]
   goals: { name: string; current: number; target: number }[]
+  bankName?: string | null
+  bankSuffix?: string
 }) {
   const { hidden } = useHideValues()
   const monthBudget = budgets.reduce((s, b) => s + b.limit, 0)
-  const monthLabel = currentYearMonth()
+  const monthLabel = monthLabelPt(currentYearMonth())
+  const suffix = bankSuffix || (bankName ? ` no ${bankName}` : "")
   const spentRatio = monthBudget > 0 ? expense / monthBudget : 0
   void _flowByDay
 
   return (
     <div className="flex flex-col gap-4">
       <PageTitle
-        title="Início"
         subtitle={`Visão geral de ${monthLabel} · teto por categoria`}
       />
 
       <div className="grid gap-3 lg:grid-cols-4">
         <DsCard className="gap-2 border-ds-hero-stroke bg-ds-hero p-5 text-ds-on-hero lg:col-span-1">
-          <p className="text-sm text-ds-on-hero-muted">Quanto você tem</p>
+          <p className="text-sm text-ds-on-hero-muted">Quanto você tem{suffix}</p>
           <p className="text-[32px] leading-none font-semibold tracking-tight">
             <AppMoney value={netWorth} className="text-ds-on-hero" />
           </p>

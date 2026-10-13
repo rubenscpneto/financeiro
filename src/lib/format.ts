@@ -52,7 +52,7 @@ export function monthLabelPt(yearMonth: string, style: "long" | "short" = "long"
     month: style,
     year: "numeric",
   }).format(new Date(y, m - 1, 1))
-  return label
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 export function cnSignClass(amount: number) {

@@ -4,7 +4,7 @@ import { useTransition } from "react"
 import { toast } from "sonner"
 import { upsertBudgetAction, deleteBudgetAction } from "@/lib/actions/crud"
 import type { Budget, Category } from "@/lib/types"
-import { currentYearMonth } from "@/lib/format"
+import { currentYearMonth, monthLabelPt } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -142,7 +142,7 @@ export function OrcamentosClient({
         })}
         {budgets.length === 0 ? (
           <p className="text-sm text-ds-muted">
-            Nenhum teto para {yearMonth || currentYearMonth()}.
+            Nenhum teto para {monthLabelPt(yearMonth || currentYearMonth())}.
           </p>
         ) : null}
       </div>

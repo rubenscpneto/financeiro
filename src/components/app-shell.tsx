@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { BankFilter } from "@/components/bank-filter"
+import type { BankGroup } from "@/lib/banks"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { DesignIcon, type DesignIconName } from "@/components/design/icons"
@@ -132,9 +134,11 @@ function NavRow({
 export function AppShell({
   children,
   userLabel,
+  banks = [],
 }: {
   children: ReactNode
   userLabel: string
+  banks?: Pick<BankGroup, "key" | "name">[]
 }) {
   const pathname = usePathname()
   const { hidden, toggle } = useHideValues()
@@ -209,7 +213,7 @@ export function AppShell({
                 <Avatar initials={initialsFrom(userLabel)} size={40} />
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-semibold text-ds-ink">
-                    {userLabel}
+                    {firstName(userLabel)}
                   </p>
                   <LogoutButton className="text-sm font-medium text-ds-accent">
                     Sair
@@ -222,21 +226,26 @@ export function AppShell({
 
         <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
           <header className="flex items-start justify-between gap-3 px-5 pt-5 pb-2 lg:px-8">
-            <div className="min-w-0">
-              {greet ? (
-                <>
-                  <p className="text-[28px] leading-tight font-semibold tracking-tight lg:text-[32px]">
-                    Olá, {firstName(userLabel)}
+            <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+              <div className="min-w-0">
+                {greet ? (
+                  <>
+                    <p className="text-[28px] leading-tight font-semibold tracking-tight lg:text-[32px]">
+                      Olá, {firstName(userLabel)}
+                    </p>
+                    <p className="mt-1 text-sm text-ds-muted">
+                      Suas finanças · {todayLabel()}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-2xl font-semibold tracking-tight text-ds-ink">
+                    {pageTitle(pathname)}
                   </p>
-                  <p className="mt-1 text-sm text-ds-muted">
-                    Suas finanças · {todayLabel()}
-                  </p>
-                </>
-              ) : (
-                <p className="text-2xl font-semibold tracking-tight text-ds-ink">
-                  {pageTitle(pathname)}
-                </p>
-              )}
+                )}
+              </div>
+              <Suspense>
+                <BankFilter banks={banks} />
+              </Suspense>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <EyeButton hidden={hidden} onClick={toggle} />

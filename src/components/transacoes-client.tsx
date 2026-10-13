@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { updateTransactionCategoryAction } from "@/lib/actions/crud"
 import type { Category, Transaction } from "@/lib/types"
-import { formatDateBR, shiftYearMonth } from "@/lib/format"
+import { formatDateBR, monthLabelPt, shiftYearMonth } from "@/lib/format"
 import {
   Chip,
   DsCard,
@@ -72,7 +72,6 @@ function dayHeading(iso: string) {
 
 export function TransacoesClient({
   transactions,
-  banks,
   categories,
   yearMonth,
   from,
@@ -83,7 +82,6 @@ export function TransacoesClient({
   helpRows,
 }: {
   transactions: Row[]
-  banks: { key: string; name: string }[]
   categories: Category[]
   yearMonth: string | null
   from: string
@@ -124,7 +122,6 @@ export function TransacoesClient({
   const params = useSearchParams()
   const { hidden } = useHideValues()
 
-  const bankKey = params.get("bank") ?? ""
   const categoryId = params.get("category_id") ?? ""
 
   const filtered = useMemo(() => {
@@ -151,8 +148,9 @@ export function TransacoesClient({
     return [...map.entries()]
   }, [filtered])
 
-  const periodLabel =
-    from && to
+  const periodLabel = yearMonth
+    ? monthLabelPt(yearMonth)
+    : from && to
       ? `${formatDateBR(from).slice(0, 5)} a ${formatDateBR(to)}`
       : "período"
 
@@ -174,36 +172,6 @@ export function TransacoesClient({
             className="w-full pl-10"
           />
         </label>
-
-        <div className="flex min-w-0 gap-2 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => pushQuery(router, params, { bank: null })}
-            className={cn(
-              "shrink-0 rounded-full border px-3 py-2 text-sm",
-              !bankKey
-                ? "border-ds-accent bg-ds-accent-soft font-semibold text-ds-accent"
-                : "border-ds-border text-ds-muted"
-            )}
-          >
-            Todas
-          </button>
-          {banks.map((b) => (
-            <button
-              key={b.key}
-              type="button"
-              onClick={() => pushQuery(router, params, { bank: b.key })}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-2 text-sm",
-                bankKey === b.key
-                  ? "border-ds-accent bg-ds-accent-soft font-semibold text-ds-accent"
-                  : "border-ds-border text-ds-muted"
-              )}
-            >
-              {b.name}
-            </button>
-          ))}
-        </div>
 
         <div className="flex min-w-0 flex-wrap items-end gap-2">
           <label className="flex min-w-0 flex-[1_1_9rem] flex-col gap-1 text-sm text-ds-muted">

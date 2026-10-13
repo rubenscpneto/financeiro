@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm"
+import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/db"
 import { accounts, adjustments, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
@@ -7,13 +7,19 @@ import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount, decAdjustment, decTransaction } from "@/lib/crypto/rows"
 import { TransacoesClient } from "@/components/transacoes-client"
 import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
-import { accountIdsForBank, groupAccountsByBank } from "@/lib/banks"
+import {
+  accountBankById,
+  accountIdsForBank,
+  applyOwnBankTransfers,
+  dedupeTransactions,
+  filterByAccountIds,
+  groupAccountsByBank,
+  primaryAccountIds,
+} from "@/lib/banks"
 import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import { groupLoans, type AdjustmentRow } from "@/lib/loans"
 import type { Category, Transaction } from "@/lib/types"
-
-const EMPTY_UUID = "00000000-0000-0000-0000-000000000000"
 
 export default async function TransacoesPage({
   searchParams,
@@ -59,11 +65,8 @@ export default async function TransacoesPage({
     )
   const banks = groupAccountsByBank(decodedAccounts)
   const bankIds = accountIdsForBank(banks, params.bank)
-  const scopedIds =
-    bankIds == null ? null : bankIds.length > 0 ? bankIds : [EMPTY_UUID]
 
   const filters = [eq(transactions.user_id, userId)]
-  if (scopedIds) filters.push(inArray(transactions.account_id, scopedIds))
   if (params.category_id) filters.push(eq(transactions.category_id, params.category_id))
   if (from) filters.push(gte(transactions.date, from))
   if (to) filters.push(lte(transactions.date, to))
@@ -109,14 +112,22 @@ export default async function TransacoesPage({
     }
   }
 
-  const decorated = decorateTransactions(txnRows.map(mapRow), {
-    yearMonth,
-    from,
-    to,
-  })
+  const decorated = applyOwnBankTransfers(
+    decorateTransactions(
+      dedupeTransactions(txnRows.map(mapRow), {
+        primaryAccountIds: primaryAccountIds(banks),
+      }),
+      { yearMonth, from, to }
+    ),
+    {
+      filteredBankKey: params.bank,
+      accountBankById: accountBankById(banks),
+    }
+  )
 
-  const hiddenDuplicates = decorated.filter((t) => t.class.kind === "card_bill_hidden")
-  const visible = decorated.filter((t) => !t.class.hide)
+  const scoped = filterByAccountIds(decorated, bankIds)
+  const hiddenDuplicates = scoped.filter((t) => t.class.kind === "card_bill_hidden")
+  const visible = scoped.filter((t) => !t.class.hide)
 
   const helpAdj = decodedAdj.filter(
     (a) =>
@@ -130,19 +141,19 @@ export default async function TransacoesPage({
   const entrou = visible.reduce((s, t) => s + t.class.incomeDelta, 0)
   const saiu =
     visible.reduce((s, t) => s + t.class.expenseDelta, 0) + helpSpend
-  const cardBill = decorated
+  const cardBill = scoped
     .filter((t) => t.class.kind === "card_bill")
     .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0)
-  const between = decorated
+  const between = scoped
     .filter(
       (t) =>
         t.class.kind === "transfer" || t.class.kind === "investment_transfer"
     )
     .reduce((s, t) => s + (Number(t.amount) || 0), 0)
-  const loanOut = decorated
+  const loanOut = scoped
     .filter((t) => t.class.kind === "loan" && Number(t.amount) < 0)
     .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0)
-  const loanIn = decorated
+  const loanIn = scoped
     .filter((t) => t.class.kind === "loan" && Number(t.amount) > 0)
     .reduce((s, t) => s + (Number(t.amount) || 0), 0)
 
@@ -186,7 +197,12 @@ export default async function TransacoesPage({
     }
   })
 
-  const loanDecorated = decorateTransactions(loanRows.map(mapRow), {})
+  const loanDecorated = decorateTransactions(
+    dedupeTransactions(loanRows.map(mapRow), {
+      primaryAccountIds: primaryAccountIds(banks),
+    }),
+    {}
+  )
   const loans = groupLoans(loanDecorated, decodedAdj)
 
   const displayCategories = (categoryRows as Category[]).map((c) => ({
@@ -208,7 +224,6 @@ export default async function TransacoesPage({
             _installmentLabel?: string | null
             _virouAjuda?: boolean
           })[]}
-          banks={banks.map((b) => ({ key: b.key, name: b.name }))}
           categories={displayCategories}
           yearMonth={yearMonth}
           from={from ?? ""}

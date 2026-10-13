@@ -11,6 +11,12 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount, decMovement, decPosition } from "@/lib/crypto/rows"
 import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
+import {
+  accountIdsForBank,
+  balanceIdsForBank,
+  bankHeadlineSuffix,
+  groupAccountsByBank,
+} from "@/lib/banks"
 import { getCdiRates } from "@/lib/cdi"
 import {
   groupTitles,
@@ -24,9 +30,14 @@ import { roundCents } from "@/lib/money-math"
 import { InvestimentosClient } from "@/components/investimentos-client"
 import type { ClassifiableTxn as Txn } from "@/lib/txn-class"
 
-export default async function InvestimentosPage() {
+export default async function InvestimentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>
+}) {
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
+  const params = await searchParams
   const asOf = todayYmd()
   const ym = currentYearMonth()
   const monthStart = monthBounds(ym).start
@@ -68,10 +79,22 @@ export default async function InvestimentosPage() {
     const d = decAccount(crypto, a)
     return { ...d, extra: parseAccountMeta(d.extra_meta) }
   })
-  const titles = positionRows.map((p) =>
-    titledPosition(decPosition(crypto, p), asOf)
-  )
-  const movs = movementRows.map((m) => decMovement(crypto, m))
+  const banks = groupAccountsByBank(accountsDecoded)
+  const scopedIds =
+    accountIdsForBank(banks, params.bank) ??
+    banks.flatMap((g) => g.accountIds)
+  const balIds =
+    balanceIdsForBank(banks, params.bank) ??
+    banks.flatMap((g) => g.balanceAccountIds)
+  const bankSuffix = bankHeadlineSuffix(banks, params.bank)
+  const scopedAcc = new Set(scopedIds)
+  const balAcc = new Set(balIds)
+  const titles = positionRows
+    .filter((p) => balAcc.has(p.account_id))
+    .map((p) => titledPosition(decPosition(crypto, p), asOf))
+  const movs = movementRows
+    .filter((m) => scopedAcc.has(m.account_id))
+    .map((m) => decMovement(crypto, m))
   const groups = groupTitles(titles)
   const gross = roundCents(titles.reduce((s, t) => s + t.gross, 0))
   const net = roundCents(titles.reduce((s, t) => s + t.net, 0))
@@ -86,12 +109,12 @@ export default async function InvestimentosPage() {
   )
 
   const checking = snapRows
-    .filter((s) => s.source_type === "checking")
+    .filter((s) => s.source_type === "checking" && balAcc.has(s.account_id))
     .reduce((s, r) => s + crypto.decryptNum("balance", r.balance), 0)
   const disponivel = roundCents(liquid + checking)
 
   const billLines = accountsDecoded
-    .filter((a) => a.type === "credit_card")
+    .filter((a) => a.type === "credit_card" && balAcc.has(a.id))
     .map((a) => {
       const snap = snapRows.find((s) => s.account_id === a.id)
       const amount = snap ? crypto.decryptNum("balance", snap.balance) : 0
@@ -99,7 +122,9 @@ export default async function InvestimentosPage() {
     })
     .filter((b) => b.amount > 0)
 
-  const txns: Txn[] = txnRows.map((t) => ({
+  const txns: Txn[] = txnRows
+    .filter((t) => scopedAcc.has(t.account_id))
+    .map((t) => ({
     ...t,
     amount: crypto.decryptNum("amount", t.amount),
     description: crypto.decryptFlex("description", t.description),
@@ -152,6 +177,7 @@ export default async function InvestimentosPage() {
       }))}
       bands={irBands(titles)}
       iofNotes={titles.filter((t) => t.iof > 0)}
+      bankSuffix={bankSuffix}
     />
   )
 }

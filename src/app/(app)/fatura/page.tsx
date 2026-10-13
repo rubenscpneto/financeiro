@@ -14,6 +14,14 @@ import {
 import { decorateTransactions } from "@/lib/txn-class"
 import { todayYmd } from "@/lib/format"
 import { FaturaClient } from "@/components/fatura-client"
+import {
+  accountIdsForBank,
+  balanceIdsForBank,
+  dedupeTransactions,
+  groupAccountsByBank,
+  primaryAccountIds,
+  resolveBank,
+} from "@/lib/banks"
 
 export default async function FaturaPage({
   searchParams,
@@ -42,13 +50,23 @@ export default async function FaturaPage({
       .limit(4000),
   ])
 
-  const cards = accountRows
-    .map((a) => decAccount(crypto, a))
+  const decoded = accountRows.map((a) => decAccount(crypto, a))
+  const banks = groupAccountsByBank(decoded)
+  const scopedIds = accountIdsForBank(banks, params.bank)
+  const displayIds = new Set(
+    (balanceIdsForBank(banks, params.bank) ??
+      banks.flatMap((g) => g.balanceAccountIds)).filter((id) =>
+      scopedIds == null ? true : scopedIds.includes(id)
+    )
+  )
+  const cards = decoded
     .filter((a) => a.type === "credit_card")
+    .filter((a) => displayIds.has(a.id))
     .map((a) => ({
       ...a,
       extra: parseAccountMeta(a.extra_meta),
       last4: a.last4,
+      institution: resolveBank(a).name,
     }))
 
   const selectedId =
@@ -57,9 +75,12 @@ export default async function FaturaPage({
       : cards[0]?.id ?? null
 
   const txns = decorateTransactions(
-    txnRows.map((t) => ({
-      ...decTransaction(crypto, t),
-    }))
+    dedupeTransactions(
+      txnRows.map((t) => ({
+        ...decTransaction(crypto, t),
+      })),
+      { primaryAccountIds: primaryAccountIds(banks) }
+    )
   )
   const selected = cards.find((c) => c.id === selectedId) ?? null
   const { closeDay, dueDay } = cardSchedule(selected?.extra ?? null)

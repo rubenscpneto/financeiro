@@ -40,6 +40,7 @@ export function InvestimentosClient({
   vencimentos,
   bands,
   iofNotes,
+  bankSuffix = "",
 }: {
   net: number
   gross: number
@@ -55,6 +56,7 @@ export function InvestimentosClient({
   vencimentos: { date: string; name: string; gross: number }[]
   bands: { label: string; rate: string; gross: number }[]
   iofNotes: TitledPosition[]
+  bankSuffix?: string
 }) {
   const { hidden } = useHideValues()
   const [open, setOpen] = useState<string | null>(null)
@@ -75,7 +77,7 @@ export function InvestimentosClient({
       ) : (
         <>
           <DsCard className="gap-2 border-ds-hero-stroke bg-ds-hero p-5 text-ds-on-hero">
-            <p className="text-sm text-ds-on-hero-muted">Total investido</p>
+            <p className="text-sm text-ds-on-hero-muted">Total investido{bankSuffix}</p>
             <p className="text-[34px] leading-none font-semibold whitespace-nowrap">
               <AppMoney value={net} className="text-ds-on-hero" />
             </p>

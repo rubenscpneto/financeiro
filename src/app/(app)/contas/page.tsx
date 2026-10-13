@@ -90,12 +90,14 @@ export default async function ContasPage() {
 
   const cards = banks.map((b) => {
     const accs = decoded.filter((a) => b.accountIds.includes(a.id))
-    const checking = accs.filter((a) => a.type === "checking")
-    const credit = accs.filter((a) => a.type === "credit_card")
+    const balIds = new Set(b.balanceAccountIds)
+    const checking = accs.filter((a) => a.type === "checking" && balIds.has(a.id))
+    const credit = accs.filter((a) => a.type === "credit_card" && balIds.has(a.id))
     const investAccIds = new Set(
       accs.filter((a) => a.type === "investment").map((a) => a.id)
     )
     const checkingBal = checking.reduce((s, a) => {
+      if (!balIds.has(a.id)) return s
       const snap = snapRows.find((x) => x.account_id === a.id)
       return s + (snap ? crypto.decryptNum("balance", snap.balance) : 0)
     }, 0)
@@ -117,7 +119,7 @@ export default async function ContasPage() {
       ok: itemStatus.ok && !stale,
       hours,
       stale,
-      itemCount: accs.length,
+      itemCount: b.balanceAccountIds.length,
       checking: checking.map((a) => ({
         name: a.name,
         balance: checkingBal,

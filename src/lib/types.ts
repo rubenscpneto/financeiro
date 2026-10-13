@@ -35,6 +35,10 @@ export type AccountExtraMeta = {
   balanceDueDate?: string | null
   brand?: string | null
   level?: string | null
+  transferNumber?: string | null
+  compe?: string | null
+  institutionName?: string | null
+  connectorName?: string | null
 }
 
 export type Category = {

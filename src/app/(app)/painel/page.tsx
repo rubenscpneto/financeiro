@@ -1,4 +1,3 @@
-import { Suspense } from "react"
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm"
 import { db } from "@/db"
 import {
@@ -14,10 +13,19 @@ import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { decAccount } from "@/lib/crypto/rows"
 import { PainelClient } from "@/components/painel-client"
-import { BankFilter } from "@/components/bank-filter"
 import { currentYearMonth, monthBounds } from "@/lib/format"
 import { positionCurrentValue } from "@/lib/investments/value"
-import { accountIdsForBank, groupAccountsByBank } from "@/lib/banks"
+import {
+  accountBankById,
+  accountIdsForBank,
+  applyOwnBankTransfers,
+  balanceIdsForBank,
+  bankHeadlineSuffix,
+  dedupeTransactions,
+  filterByAccountIds,
+  groupAccountsByBank,
+  primaryAccountIds,
+} from "@/lib/banks"
 import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Account } from "@/lib/types"
@@ -47,9 +55,15 @@ export default async function PainelPage({
     ) as Account[]
 
   const banks = groupAccountsByBank(decodedAccounts)
-  const bankIds = accountIdsForBank(banks, params.bank)
-  const scopedIds =
-    bankIds == null ? null : bankIds.length > 0 ? bankIds : [EMPTY_UUID]
+  const txnIds = accountIdsForBank(banks, params.bank)
+  const balIds =
+    balanceIdsForBank(banks, params.bank) ??
+    banks.flatMap((g) => g.balanceAccountIds)
+  const snapScope = balIds.length > 0 ? balIds : [EMPTY_UUID]
+  const bankSuffix = bankHeadlineSuffix(banks, params.bank)
+  const bankName = params.bank
+    ? banks.find((b) => b.key === params.bank)?.name ?? null
+    : null
 
   const txnFilters = [
     eq(transactions.user_id, userId),
@@ -64,12 +78,9 @@ export default async function PainelPage({
   ]
   const allTxnFilters = [eq(transactions.user_id, userId)]
 
-  if (scopedIds) {
-    txnFilters.push(inArray(transactions.account_id, scopedIds))
-    snapshotFilters.push(inArray(balanceSnapshots.account_id, scopedIds))
-    positionFilters.push(inArray(investmentPositions.account_id, scopedIds))
-    allTxnFilters.push(inArray(transactions.account_id, scopedIds))
-  }
+  snapshotFilters.push(inArray(balanceSnapshots.account_id, snapScope))
+  positionFilters.push(inArray(investmentPositions.account_id, snapScope))
+  allTxnFilters.push(inArray(transactions.account_id, snapScope))
 
   const [
     txns,
@@ -82,6 +93,7 @@ export default async function PainelPage({
   ] = await Promise.all([
     db
       .select({
+        id: transactions.id,
         date: transactions.date,
         amount: transactions.amount,
         category_id: transactions.category_id,
@@ -198,30 +210,41 @@ export default async function PainelPage({
   const netWorth = checking - creditLiability + investBalance
 
   const catName = new Map(categoryRows.map((c) => [c.id, c]))
-  const decorated = decorateTransactions(
-    txns.map((t) => ({
-      date: t.date,
-      amount: crypto.decryptNum("amount", t.amount),
-      category_id: t.category_id,
-      account_id: t.account_id,
-      is_transfer: t.is_transfer,
-      source_type: t.source_type,
-      source_category: crypto.decryptFlex("source_category", t.source_category),
-      description: crypto.decryptFlex("description", t.description),
-      merchant: crypto.decryptFlex("merchant", t.merchant),
-      installment: crypto.decryptFlex("installment", t.installment),
-      notes: crypto.decryptFlex("notes", t.notes),
-      category_name: t.category_id ? catName.get(t.category_id)?.name : null,
-    })),
-    { yearMonth }
+  const decorated = applyOwnBankTransfers(
+    decorateTransactions(
+      dedupeTransactions(
+        txns.map((t) => ({
+          id: t.id,
+          date: t.date,
+          amount: crypto.decryptNum("amount", t.amount),
+          category_id: t.category_id,
+          account_id: t.account_id,
+          is_transfer: t.is_transfer,
+          source_type: t.source_type,
+          source_category: crypto.decryptFlex("source_category", t.source_category),
+          description: crypto.decryptFlex("description", t.description),
+          merchant: crypto.decryptFlex("merchant", t.merchant),
+          installment: crypto.decryptFlex("installment", t.installment),
+          notes: crypto.decryptFlex("notes", t.notes),
+          category_name: t.category_id ? catName.get(t.category_id)?.name : null,
+        })),
+        { primaryAccountIds: primaryAccountIds(banks) }
+      ),
+      { yearMonth }
+    ),
+    {
+      filteredBankKey: params.bank,
+      accountBankById: accountBankById(banks),
+    }
   )
+  const scopedDecorated = filterByAccountIds(decorated, txnIds)
 
   let income = 0
   let expense = 0
   const byDay = new Map<string, { entradas: number; saidas: number }>()
   const byCat = new Map<string, number>()
 
-  for (const t of decorated) {
+  for (const t of scopedDecorated) {
     const cls = t.class
     if (cls.hide) continue
     const day = (t.date ?? "").slice(8, 10)
@@ -280,24 +303,19 @@ export default async function PainelPage({
   }))
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex min-w-0 justify-end">
-        <Suspense>
-          <BankFilter banks={banks} pathname="/painel" />
-        </Suspense>
-      </div>
-      <PainelClient
-        netWorth={netWorth}
-        checking={checking}
-        creditDebt={creditLiability}
-        investments={investBalance}
-        income={income}
-        expense={expense}
-        flowByDay={flowByDay}
-        topCategories={topCategories}
-        budgets={budgetRows}
-        goals={goalRows}
-      />
-    </div>
+    <PainelClient
+      netWorth={netWorth}
+      checking={checking}
+      creditDebt={creditLiability}
+      investments={investBalance}
+      income={income}
+      expense={expense}
+      flowByDay={flowByDay}
+      topCategories={topCategories}
+      budgets={budgetRows}
+      goals={goalRows}
+      bankName={bankName}
+      bankSuffix={bankSuffix}
+    />
   )
 }

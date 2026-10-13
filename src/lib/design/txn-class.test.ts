@@ -74,6 +74,7 @@ test("Pluggy English categories map to pt-BR", () => {
   assert.equal(categoryLabelPt("Food"), "Alimentação")
   assert.equal(categoryLabelPt("Transportation"), "Transporte")
   assert.equal(categoryLabelPt("Same Person Transfer"), "Transferência própria")
+  assert.equal(categoryLabelPt("Accommodation"), "Hospedagem")
   assert.equal(categoryLabelPt("Alimentação"), "Alimentação")
 })
 
@@ -85,7 +86,7 @@ test("accounts group by bank", () => {
   ])
   assert.equal(groups.length, 2)
   assert.deepEqual(
-    accountIdsForBank(groups, "c6-bank")?.sort(),
+    accountIdsForBank(groups, "c6")?.sort(),
     ["1", "2"]
   )
   assert.equal(accountIdsForBank(groups, null), null)

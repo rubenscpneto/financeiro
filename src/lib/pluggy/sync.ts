@@ -44,6 +44,7 @@ import {
   mapInvestmentTransaction,
   mapTransaction,
 } from "@/lib/pluggy/map"
+import { resolveBank } from "@/lib/banks"
 
 export type SyncPluggyResult = {
   error?: string
@@ -173,11 +174,11 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     }
   }
 
-  let institution = "Open Finance"
+  let connectorName = "Open Finance"
   try {
     const item = await fetchItem(apiKey, itemId)
     assertItemReady(item)
-    institution = item.connector?.name?.trim() || institution
+    connectorName = item.connector?.name?.trim() || connectorName
   } catch (e) {
     return {
       error: e instanceof Error ? e.message : "Falha ao verificar Item Pluggy",
@@ -197,6 +198,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
   const now = new Date()
   const seenPluggyIds = new Set<string>()
   const localByPluggyId = new Map<string, string>()
+  const resolvedInstitutions: string[] = []
 
   let accountsUpserted = 0
   let balances = 0
@@ -206,16 +208,25 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     if (!sourceType) continue
 
     try {
-      const extraMeta = acc.creditData
-        ? JSON.stringify({
-            brand: acc.creditData.brand ?? null,
-            level: acc.creditData.level ?? null,
-            creditLimit: acc.creditData.creditLimit ?? null,
-            availableCreditLimit: acc.creditData.availableCreditLimit ?? null,
-            balanceCloseDate: acc.creditData.balanceCloseDate ?? null,
-            balanceDueDate: acc.creditData.balanceDueDate ?? null,
-          })
-        : null
+      const extraMeta = JSON.stringify({
+        brand: acc.creditData?.brand ?? null,
+        level: acc.creditData?.level ?? null,
+        creditLimit: acc.creditData?.creditLimit ?? null,
+        availableCreditLimit: acc.creditData?.availableCreditLimit ?? null,
+        balanceCloseDate: acc.creditData?.balanceCloseDate ?? null,
+        balanceDueDate: acc.creditData?.balanceDueDate ?? null,
+        transferNumber: acc.bankData?.transferNumber ?? null,
+        compe: acc.bankData?.transferNumber?.match(/\d{3}/)?.[0] ?? null,
+        connectorName,
+      })
+      const institution = resolveBank({
+        institution: connectorName,
+        name: acc.name,
+        extra_meta: extraMeta,
+      }).name
+      if (institution && institution !== "Banco") {
+        resolvedInstitutions.push(institution)
+      }
       const localId = await upsertLocalAccount(crypto, userId, {
         pluggyAccountId: acc.id,
         name: acc.name || `${institution} ${sourceType}`,
@@ -259,16 +270,20 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     }
   }
 
+  const investInstitution =
+    resolvedInstitutions[0] ??
+    resolveBank({ institution: connectorName }).name
   const investPluggyId = `invest:${itemId}`
   let investAccountId: string
   try {
     investAccountId = await upsertLocalAccount(crypto, userId, {
       pluggyAccountId: investPluggyId,
-      name: `${institution} — Investimentos`,
+      name: `${investInstitution} — Investimentos`,
       type: "investment",
-      institution,
+      institution: investInstitution,
       last4: null,
       currency: "BRL",
+      extraMeta: JSON.stringify({ connectorName }),
     })
     seenPluggyIds.add(investPluggyId)
     accountsUpserted += 1

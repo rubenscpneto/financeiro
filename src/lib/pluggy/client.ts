@@ -17,6 +17,11 @@ export type PluggyAccount = {
     balanceCloseDate?: string | null
     balanceDueDate?: string | null
   } | null
+  bankData?: {
+    transferNumber?: string | null
+    closingBalance?: number | null
+    automaticallyInvestedBalance?: number | null
+  } | null
 }
 
 export type PluggyTransaction = {

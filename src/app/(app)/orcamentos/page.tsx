@@ -1,6 +1,6 @@
 import { and, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/db"
-import { budgets, categories, transactions } from "@/db/schema"
+import { accounts, budgets, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { OrcamentosClient } from "@/components/orcamentos-client"
@@ -8,6 +8,12 @@ import { currentYearMonth, monthBounds } from "@/lib/format"
 import { decorateTransactions } from "@/lib/txn-class"
 import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Budget, Category } from "@/lib/types"
+import { decAccount } from "@/lib/crypto/rows"
+import {
+  dedupeTransactions,
+  groupAccountsByBank,
+  primaryAccountIds,
+} from "@/lib/banks"
 
 export default async function OrcamentosPage({
   searchParams,
@@ -20,7 +26,7 @@ export default async function OrcamentosPage({
   const yearMonth = params.mes || currentYearMonth()
   const { start, end } = monthBounds(yearMonth)
 
-  const [budgetRows, categoryRows, txns] = await Promise.all([
+  const [budgetRows, categoryRows, txns, accountRows] = await Promise.all([
     db
       .select({
         budget: budgets,
@@ -38,6 +44,7 @@ export default async function OrcamentosPage({
       .orderBy(categories.name, categories.id),
     db
       .select({
+        id: transactions.id,
         category_id: transactions.category_id,
         account_id: transactions.account_id,
         date: transactions.date,
@@ -58,11 +65,18 @@ export default async function OrcamentosPage({
           lte(transactions.date, end)
         )
       ),
+    db
+      .select()
+      .from(accounts)
+      .where(eq(accounts.user_id, userId)),
   ])
 
   const catById = new Map(categoryRows.map((c) => [c.id, c.name]))
+  const banks = groupAccountsByBank(accountRows.map((a) => decAccount(crypto, a)))
   const decorated = decorateTransactions(
+    dedupeTransactions(
     txns.map((t) => ({
+      id: t.id,
       category_id: t.category_id,
       account_id: t.account_id,
       date: t.date,
@@ -76,6 +90,8 @@ export default async function OrcamentosPage({
       notes: crypto.decryptFlex("notes", t.notes),
       category_name: t.category_id ? catById.get(t.category_id) : null,
     })),
+      { primaryAccountIds: primaryAccountIds(banks) }
+    ),
     { yearMonth }
   )
   const spentByCat = new Map<string, number>()

@@ -225,7 +225,7 @@ export function FaturaClient({
           </p>
           {future.map((g) => (
             <div key={g.dueYm} className="flex flex-col gap-2">
-              <p className="font-medium capitalize">{monthLabelPt(g.dueYm)}</p>
+              <p className="font-medium">{monthLabelPt(g.dueYm)}</p>
               {g.items.map((i) => (
                 <div
                   key={i.id}
