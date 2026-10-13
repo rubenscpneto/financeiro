@@ -48,7 +48,7 @@ export default async function TransacoesPage({
       .leftJoin(accounts, eq(transactions.account_id, accounts.id))
       .leftJoin(categories, eq(transactions.category_id, categories.id))
       .where(and(...filters))
-      .orderBy(desc(transactions.date))
+      .orderBy(desc(transactions.date), desc(transactions.id))
       .limit(1000),
     db
       .select()
@@ -58,7 +58,7 @@ export default async function TransacoesPage({
       .select()
       .from(categories)
       .where(eq(categories.user_id, userId))
-      .orderBy(categories.name),
+      .orderBy(categories.name, categories.id),
   ])
 
   const mapped = txnRows.map((row) => {
@@ -74,7 +74,9 @@ export default async function TransacoesPage({
   })
   const decodedAccounts = accountRows
     .map((a) => decAccount(crypto, a))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+    .sort(
+      (a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
+    )
 
   const periodLabel = yearMonth
     ? yearMonth

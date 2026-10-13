@@ -13,7 +13,7 @@ export default async function MetasPage() {
     .select()
     .from(goals)
     .where(eq(goals.user_id, userId))
-    .orderBy(desc(goals.created_at))
+    .orderBy(desc(goals.created_at), desc(goals.id))
 
   const mapped = data.map((g) => ({
     ...g,

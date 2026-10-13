@@ -14,7 +14,7 @@ export default async function CategoriasPage() {
       .select()
       .from(categories)
       .where(eq(categories.user_id, userId))
-      .orderBy(categories.name),
+      .orderBy(categories.name, categories.id),
     db
       .select({
         rule: categoryRules,
@@ -23,7 +23,7 @@ export default async function CategoriasPage() {
       .from(categoryRules)
       .leftJoin(categories, eq(categoryRules.category_id, categories.id))
       .where(eq(categoryRules.user_id, userId))
-      .orderBy(categoryRules.priority),
+      .orderBy(categoryRules.priority, categoryRules.id),
   ])
 
   const rules = ruleRows.map((row) => ({

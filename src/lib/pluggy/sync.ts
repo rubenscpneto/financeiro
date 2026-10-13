@@ -287,6 +287,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
   const [rules, categoryRows] = await Promise.all([
     db
       .select({
+        id: categoryRules.id,
         match_pattern: categoryRules.match_pattern,
         category_id: categoryRules.category_id,
         priority: categoryRules.priority,
@@ -294,7 +295,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
       })
       .from(categoryRules)
       .where(eq(categoryRules.user_id, userId))
-      .orderBy(categoryRules.priority),
+      .orderBy(categoryRules.priority, categoryRules.id),
     db
       .select({
         id: categories.id,

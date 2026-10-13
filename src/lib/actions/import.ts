@@ -166,6 +166,7 @@ export async function parseImportAction(formData: FormData): Promise<
   const [rules, categoryRows] = await Promise.all([
     db
       .select({
+        id: categoryRules.id,
         match_pattern: categoryRules.match_pattern,
         category_id: categoryRules.category_id,
         priority: categoryRules.priority,
@@ -173,7 +174,7 @@ export async function parseImportAction(formData: FormData): Promise<
       })
       .from(categoryRules)
       .where(eq(categoryRules.user_id, userId))
-      .orderBy(categoryRules.priority)
+      .orderBy(categoryRules.priority, categoryRules.id)
       .then((rows) =>
         rows.map((r) => ({
           ...r,
@@ -224,7 +225,7 @@ export async function parseImportAction(formData: FormData): Promise<
     .select({ id: categories.id, name: categories.name })
     .from(categories)
     .where(eq(categories.user_id, userId))
-    .orderBy(categories.name)
+    .orderBy(categories.name, categories.id)
 
   await db
     .update(imports)

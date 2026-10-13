@@ -27,12 +27,13 @@ export default async function OrcamentosPage({
       })
       .from(budgets)
       .leftJoin(categories, eq(budgets.category_id, categories.id))
-      .where(and(eq(budgets.user_id, userId), eq(budgets.year_month, yearMonth))),
+      .where(and(eq(budgets.user_id, userId), eq(budgets.year_month, yearMonth)))
+      .orderBy(budgets.category_id, budgets.id),
     db
       .select()
       .from(categories)
       .where(eq(categories.user_id, userId))
-      .orderBy(categories.name),
+      .orderBy(categories.name, categories.id),
     db
       .select({
         category_id: transactions.category_id,

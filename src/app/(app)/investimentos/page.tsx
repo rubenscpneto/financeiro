@@ -38,12 +38,13 @@ export default async function InvestimentosPage() {
           eq(investmentPositions.is_active, true),
           eq(accounts.type, "investment")
         )
-      ),
+      )
+      .orderBy(investmentPositions.id),
     db
       .select()
       .from(investmentMovements)
       .where(eq(investmentMovements.user_id, userId))
-      .orderBy(desc(investmentMovements.date)),
+      .orderBy(desc(investmentMovements.date), desc(investmentMovements.id)),
   ])
 
   const list = positionRows.map((row) => {
@@ -101,7 +102,9 @@ export default async function InvestimentosPage() {
       currentTotal > 0 ? (a.valorAtual / currentTotal) * 100 : 0
   }
 
-  ativos.sort((a, b) => b.valorAtual - a.valorAtual)
+  ativos.sort(
+    (a, b) => b.valorAtual - a.valorAtual || a.id.localeCompare(b.id)
+  )
 
   const evolution = buildInvestmentEvolution(
     ativos.map((a) => ({

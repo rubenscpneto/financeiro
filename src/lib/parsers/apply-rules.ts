@@ -1,6 +1,7 @@
 import type { ParsedTransaction } from './types'
 
 export type CategoryRule = {
+  id?: string
   match_pattern: string
   category_id: string
   priority: number
@@ -35,7 +36,11 @@ export function applyCategoryRules(
   rules: CategoryRule[],
   accountType?: string,
 ): Map<string, string> {
-  const orderedRules = [...rules].sort((left, right) => left.priority - right.priority)
+  const orderedRules = [...rules].sort(
+    (left, right) =>
+      left.priority - right.priority ||
+      (left.id ?? "").localeCompare(right.id ?? "")
+  )
   const categories = new Map<string, string>()
 
   for (const transaction of txns) {

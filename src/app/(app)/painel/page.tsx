@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, desc, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/db"
 import {
   accounts,
@@ -90,11 +90,13 @@ export default async function PainelPage({
       })
       .from(budgets)
       .leftJoin(categories, eq(budgets.category_id, categories.id))
-      .where(and(eq(budgets.user_id, userId), eq(budgets.year_month, yearMonth))),
+      .where(and(eq(budgets.user_id, userId), eq(budgets.year_month, yearMonth)))
+      .orderBy(budgets.category_id, budgets.id),
     db
       .select()
       .from(goals)
       .where(and(eq(goals.user_id, userId), eq(goals.is_archived, false)))
+      .orderBy(desc(goals.created_at), desc(goals.id))
       .limit(5),
     db
       .select({
@@ -204,7 +206,7 @@ export default async function PainelPage({
 
   const catName = new Map(categoryRows.map((c) => [c.id, c]))
   const topCategories = [...byCat.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 6)
     .map(([id, value]) => ({
       name: catName.get(id)?.name ?? "Outros",
@@ -237,7 +239,9 @@ export default async function PainelPage({
 
   const decodedAccounts = accountRows
     .map((a) => decAccount(crypto, a))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+    .sort(
+      (a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id)
+    )
 
   return (
     <div className="flex flex-col gap-4">
