@@ -5,15 +5,16 @@ Production runs as a Docker container next to a Postgres instance. Auth is Bette
 
 ## Layout (Coolify project `financeiro`)
 - Postgres (self-hosted). Point `DATABASE_URL` at it.
-- `financeiro-app`: this repo built with the `Dockerfile` (`output: "standalone"`), served at `https://financeiro.rubenspereira.tech`.
+- `financeiro-app`: this repo built with the `Dockerfile` (`output: "standalone"`), served at `NEXT_PUBLIC_SITE_URL` (e.g. `https://financeiro.example.com`).
 - Persistent volume for statements: mount at `/data/statements` (uid 1000 / `node`).
+- Do not commit the real production hostname, VPS IP, or neighboring services.
 
 The container runs `drizzle-kit`-equivalent SQL migrations (`scripts/migrate.mjs`) before starting the Next.js server.
 
 ## Environment variables
 | Name | Build arg | Notes |
 |---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | yes | `https://financeiro.rubenspereira.tech` |
+| `NEXT_PUBLIC_SITE_URL` | yes | public origin, e.g. `https://financeiro.example.com` |
 | `DATABASE_URL` | no | Postgres connection string |
 | `BETTER_AUTH_SECRET` | no | 32+ char secret |
 | `BETTER_AUTH_URL` | no | same as `NEXT_PUBLIC_SITE_URL` |

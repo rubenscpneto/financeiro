@@ -22,7 +22,13 @@
 
 # misc
 .DS_Store
+
+# keys / certs
 *.pem
+*.key
+*.p12
+*.pfx
+*.crt
 
 # debug
 npm-debug.log*
@@ -30,12 +36,20 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files and local MCP configs (never commit real values or project refs)
 .env*
+!.env.example
+.mcp.json
+.mcp.json.*
+!.mcp.json.example
+.cursor/mcp.json
+
+# KEK / mounted secrets
 .kek
 *.kek
 /run/secrets/
-!.env.example
+financeiro_kek
+financeiro_kek_*
 
 # vercel
 .vercel
@@ -44,4 +58,21 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# financial exports, statements, DB backups (real user data)
+/exports/
+/statements/
+/backups/
+/dumps/
+*.dump
+*.sql.gz
+*.bak
+
+# bank files dropped in the repo root / data dirs
+/*.csv
+/*.ofx
+/*.ofc
+/*.qif
+/*.xlsx
+/*.xls
+/*.pdf
+/data/
