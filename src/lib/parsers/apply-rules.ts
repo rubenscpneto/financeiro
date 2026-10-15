@@ -1,4 +1,5 @@
 import type { ParsedTransaction } from './types'
+import { categoryNamePt } from '@/lib/pluggy-categories-pt'
 
 export type CategoryRule = {
   id?: string
@@ -72,6 +73,9 @@ export async function resolveCategoriesFromSource(
   const byName = new Map<string, string>()
   for (const category of existing) {
     byName.set(normalizeName(category.name), category.id)
+    const pt = categoryNamePt(category.name)
+    const ptKey = normalizeName(pt)
+    if (!byName.has(ptKey)) byName.set(ptKey, category.id)
   }
 
   const result = new Map<string, string>()
@@ -103,7 +107,10 @@ export async function resolveCategoriesFromSource(
       : transaction.amount > 0
         ? 'income'
         : 'expense'
-    const categoryId = await ensureCategory(transaction.sourceCategory, kind)
+    const categoryId = await ensureCategory(
+      categoryNamePt(transaction.sourceCategory),
+      kind,
+    )
     if (categoryId) result.set(transaction.externalHash, categoryId)
   }
 

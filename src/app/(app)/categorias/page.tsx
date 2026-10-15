@@ -35,19 +35,11 @@ export default async function CategoriasPage() {
   }))
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Categorias</h1>
-        <p className="text-sm text-muted-foreground">
-          Organize gastos e configure regras automáticas.
-        </p>
-      </div>
-      <CategoriasClient
+    <CategoriasClient
         categories={categoryRows as Category[]}
         rules={rules as (CategoryRule & {
           categories?: { name: string } | null
         })[]}
       />
-    </div>
   )
 }

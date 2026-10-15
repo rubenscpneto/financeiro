@@ -22,7 +22,7 @@ export async function loginAction(formData: FormData) {
 
   try {
     await auth.api.signInEmail({
-      body: { email, password },
+      body: { email, password, rememberMe: true },
       headers: await headers(),
     })
   } catch {
@@ -33,10 +33,14 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function logoutAction() {
-  await auth.api.signOut({
-    headers: await headers(),
-  })
-  redirect("/auth/login")
+  try {
+    await auth.api.signOut({
+      headers: await headers(),
+    })
+  } catch {
+    /* still send the user to login */
+  }
+  redirect("/auth/login?logout=1")
 }
 
 export async function resetPasswordRequestAction(formData: FormData) {

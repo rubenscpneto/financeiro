@@ -44,6 +44,7 @@ import {
   mapInvestmentTransaction,
   mapTransaction,
 } from "@/lib/pluggy/map"
+import { resolveBank } from "@/lib/banks"
 
 export type SyncPluggyResult = {
   error?: string
@@ -72,6 +73,7 @@ async function upsertLocalAccount(
     institution: string
     last4: string | null
     currency: string
+    extraMeta?: string | null
   }
 ): Promise<string> {
   const bidx = crypto.blindIndex(input.pluggyAccountId)
@@ -103,6 +105,7 @@ async function upsertLocalAccount(
     institution: input.institution,
     last4: input.last4,
     pluggy_account_id: input.pluggyAccountId,
+    extra_meta: input.extraMeta ?? null,
   })
 
   if (existing?.id) {
@@ -116,6 +119,7 @@ async function upsertLocalAccount(
         currency: input.currency,
         pluggy_account_id: enc.pluggy_account_id,
         pluggy_account_id_bidx: enc.pluggy_account_id_bidx,
+        extra_meta: enc.extra_meta,
         is_active: true,
         updated_at: new Date(),
       })
@@ -134,6 +138,7 @@ async function upsertLocalAccount(
       institution: enc.institution,
       last4: enc.last4,
       currency: input.currency,
+      extra_meta: enc.extra_meta,
       is_active: true,
     })
     .returning({ id: accounts.id })
@@ -169,11 +174,11 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     }
   }
 
-  let institution = "Open Finance"
+  let connectorName = "Open Finance"
   try {
     const item = await fetchItem(apiKey, itemId)
     assertItemReady(item)
-    institution = item.connector?.name?.trim() || institution
+    connectorName = item.connector?.name?.trim() || connectorName
   } catch (e) {
     return {
       error: e instanceof Error ? e.message : "Falha ao verificar Item Pluggy",
@@ -193,6 +198,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
   const now = new Date()
   const seenPluggyIds = new Set<string>()
   const localByPluggyId = new Map<string, string>()
+  const resolvedInstitutions: string[] = []
 
   let accountsUpserted = 0
   let balances = 0
@@ -202,6 +208,25 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     if (!sourceType) continue
 
     try {
+      const extraMeta = JSON.stringify({
+        brand: acc.creditData?.brand ?? null,
+        level: acc.creditData?.level ?? null,
+        creditLimit: acc.creditData?.creditLimit ?? null,
+        availableCreditLimit: acc.creditData?.availableCreditLimit ?? null,
+        balanceCloseDate: acc.creditData?.balanceCloseDate ?? null,
+        balanceDueDate: acc.creditData?.balanceDueDate ?? null,
+        transferNumber: acc.bankData?.transferNumber ?? null,
+        compe: acc.bankData?.transferNumber?.match(/\d{3}/)?.[0] ?? null,
+        connectorName,
+      })
+      const institution = resolveBank({
+        institution: connectorName,
+        name: acc.name,
+        extra_meta: extraMeta,
+      }).name
+      if (institution && institution !== "Banco") {
+        resolvedInstitutions.push(institution)
+      }
       const localId = await upsertLocalAccount(crypto, userId, {
         pluggyAccountId: acc.id,
         name: acc.name || `${institution} ${sourceType}`,
@@ -209,6 +234,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
         institution,
         last4: last4FromNumber(acc.number),
         currency: acc.currencyCode || "BRL",
+        extraMeta,
       })
       seenPluggyIds.add(acc.id)
       localByPluggyId.set(acc.id, localId)
@@ -244,16 +270,20 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
     }
   }
 
+  const investInstitution =
+    resolvedInstitutions[0] ??
+    resolveBank({ institution: connectorName }).name
   const investPluggyId = `invest:${itemId}`
   let investAccountId: string
   try {
     investAccountId = await upsertLocalAccount(crypto, userId, {
       pluggyAccountId: investPluggyId,
-      name: `${institution} — Investimentos`,
+      name: `${investInstitution} — Investimentos`,
       type: "investment",
-      institution,
+      institution: investInstitution,
       last4: null,
       currency: "BRL",
+      extraMeta: JSON.stringify({ connectorName }),
     })
     seenPluggyIds.add(investPluggyId)
     accountsUpserted += 1
@@ -328,8 +358,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
       }
     }
 
-    const posted = rawTxns.filter((t) => t.status !== "PENDING")
-    const parsed: ParsedTransaction[] = posted.map((t) =>
+    const parsed: ParsedTransaction[] = rawTxns.map((t) =>
       mapTransaction(t, sourceType)
     )
     if (parsed.length === 0) continue
@@ -377,6 +406,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
         amount: t.amount,
         merchant: t.merchant ?? null,
         installment: t.installment ?? null,
+        notes: t.pending ? "pending" : null,
         source_category: t.sourceCategory ?? null,
         external_hash: t.externalHash,
       })
@@ -393,6 +423,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
           null,
         merchant: enc.merchant,
         installment: enc.installment,
+        notes: enc.notes,
         external_hash: enc.external_hash,
         source_category: enc.source_category,
         source_type: sourceType,
@@ -415,6 +446,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
             category_id: sql`excluded.category_id`,
             merchant: sql`excluded.merchant`,
             installment: sql`excluded.installment`,
+            notes: sql`excluded.notes`,
             source_category: sql`excluded.source_category`,
             source_type: sql`excluded.source_type`,
             is_transfer: sql`excluded.is_transfer`,
@@ -471,6 +503,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
       current_price: enc.current_price,
       as_of: p.asOf,
       purchase_date: p.purchaseDate ?? null,
+      due_date: p.dueDate ?? null,
       rate: enc.rate,
       rate_type: enc.rate_type,
       amount_original: enc.amount_original,
@@ -501,6 +534,7 @@ export async function runPluggySync(userId: string): Promise<SyncPluggyResult> {
             current_price: sql`excluded.current_price`,
             as_of: sql`excluded.as_of`,
             purchase_date: sql`excluded.purchase_date`,
+            due_date: sql`excluded.due_date`,
             rate: sql`excluded.rate`,
             rate_type: sql`excluded.rate_type`,
             amount_original: sql`excluded.amount_original`,

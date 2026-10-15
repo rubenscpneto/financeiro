@@ -1,3 +1,4 @@
+import { calendarYmd } from "@/lib/format"
 import { makeHash } from "@/lib/parsers/normalize"
 import type {
   AccountSourceType,
@@ -40,7 +41,11 @@ export function mapBalanceForSnapshot(
   return Number(account.balance) || 0
 }
 
-function isTransferHeuristic(txn: PluggyTransaction): boolean {
+function isTransferHeuristic(
+  txn: PluggyTransaction,
+  sourceType: AccountSourceType
+): boolean {
+  if (sourceType === "credit_card") return false
   const method = txn.paymentData?.paymentMethod?.toUpperCase() ?? ""
   if (["PIX", "TED", "DOC", "TEV"].includes(method)) return true
   const cat = (txn.category ?? "").toLowerCase()
@@ -78,13 +83,14 @@ export function mapTransaction(
   }
 
   return {
-    date: txn.date.slice(0, 10),
+    date: pluggyDateToYmd(txn.date),
     description: txn.description,
     amount,
     merchant: txn.merchant?.name ?? undefined,
     installment,
     sourceCategory: txn.category ?? null,
-    isTransfer: isTransferHeuristic(txn),
+    isTransfer: isTransferHeuristic(txn, sourceType),
+    pending: txn.status === "PENDING",
     externalHash: makeHash("pluggy", txn.id),
     confidence: "high",
   }
@@ -123,6 +129,8 @@ export function mapInvestment(inv: PluggyInvestment): ParsedPosition | null {
 
   const purchaseRaw = inv.purchaseDate ?? inv.issueDate
   const purchaseDate = purchaseRaw ? purchaseRaw.slice(0, 10) : null
+  const dueRaw = inv.dueDate
+  const dueDate = dueRaw ? dueRaw.slice(0, 10) : null
   const amountOriginal =
     inv.amountOriginal != null && Number.isFinite(Number(inv.amountOriginal))
       ? Number(inv.amountOriginal)
@@ -159,6 +167,7 @@ export function mapInvestment(inv: PluggyInvestment): ParsedPosition | null {
     rateType: inv.rateType ?? null,
     amountOriginal,
     amountWithdrawal,
+    dueDate,
     externalHash: makeHash("pluggy-inv", inv.id),
   }
 }
@@ -180,12 +189,7 @@ function mapMovementType(
 
 /** Calendar date in America/Sao_Paulo (Pluggy often sends midnight BRT as …T03:00:00.000Z). */
 export function pluggyDateToYmd(iso: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso))
+  return calendarYmd(iso)
 }
 
 export function mapInvestmentTransaction(

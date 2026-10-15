@@ -145,6 +145,7 @@ export const accounts = pgTable(
     updated_at: timestamptz("updated_at").notNull().defaultNow(),
     pluggy_account_id: text("pluggy_account_id"),
     pluggy_account_id_bidx: text("pluggy_account_id_bidx"),
+    extra_meta: text("extra_meta"),
   },
   (table) => [
     index("accounts_user_id_idx").on(table.user_id),
@@ -246,6 +247,9 @@ export const transactions = pgTable(
     category_id: uuid("category_id").references(() => categories.id, {
       onDelete: "set null",
     }),
+    user_category_id: uuid("user_category_id").references(() => categories.id, {
+      onDelete: "set null",
+    }),
     merchant: text("merchant"),
     installment: text("installment"),
     external_hash: text("external_hash").notNull(),
@@ -263,6 +267,7 @@ export const transactions = pgTable(
     ),
     index("transactions_account_idx").on(table.account_id),
     index("transactions_category_idx").on(table.category_id),
+    index("transactions_user_category_idx").on(table.user_category_id),
     index("transactions_import_id_idx").on(table.import_id),
     index("transactions_user_date_idx").on(table.user_id, table.date.desc()),
     index("transactions_user_source_type_idx").on(
@@ -342,7 +347,11 @@ export const investmentPositions = pgTable(
     rate_type: text("rate_type"),
     amount_original: text("amount_original"),
     amount_withdrawal: text("amount_withdrawal"),
+    due_date: date("due_date", { mode: "string" }),
     is_active: boolean("is_active").notNull().default(true),
+    exclude_from_reserve: boolean("exclude_from_reserve")
+      .notNull()
+      .default(false),
   },
   (table) => [
     uniqueIndex("investment_positions_user_hash_uidx").on(
@@ -456,4 +465,43 @@ export const pluggyConnections = pgTable("pluggy_connections", {
   item_id: text("item_id").notNull(),
   created_at: timestamptz("created_at").notNull().defaultNow(),
   updated_at: timestamptz("updated_at").notNull().defaultNow(),
+})
+
+/** Encrypted JSON settings payload (theme, alerts, hide-values default). */
+export const userSettings = pgTable("user_settings", {
+  user_id: uuid("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  payload: text("payload").notNull(),
+  updated_at: timestamptz("updated_at").notNull().defaultNow(),
+})
+
+/** Non-cash adjustments (e.g. loan write-off → Ajuda à família). Amount/notes encrypted. */
+export const adjustments = pgTable(
+  "adjustments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    kind: text("kind").notNull(),
+    category: text("category").notNull(),
+    amount: text("amount").notNull(),
+    ref_id: uuid("ref_id"),
+    notes: text("notes"),
+    undone_at: timestamptz("undone_at"),
+    created_at: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("adjustments_user_id_idx").on(table.user_id),
+    index("adjustments_user_date_idx").on(table.user_id, table.date.desc()),
+  ]
+)
+
+/** Public BCB SGS series 12 daily CDI rates (% a.d.). Not user PII. */
+export const cdiDaily = pgTable("cdi_daily", {
+  date: date("date", { mode: "string" }).primaryKey(),
+  rate: text("rate").notNull(),
+  fetched_at: timestamptz("fetched_at").notNull().defaultNow(),
 })

@@ -1,0 +1,73 @@
+/* Design tokens — light + dark. Source: designer v3 + product spec. */
+
+:root,
+.light {
+  --ds-bg: #f5f6f2;
+  --ds-surface: #ffffff;
+  --ds-elevated: #eef2ec;
+  --ds-border: #d5dbd3;
+  --ds-ink: #0e1a13;
+  --ds-muted: #46524b;
+  --ds-subtle: #56635b;
+  --ds-primary: #1e6b47;
+  --ds-primary-deep: #0f3a27;
+  --ds-accent: #1e6b47;
+  --ds-btn: #1e6b47;
+  --ds-on-btn: #ffffff;
+  --ds-accent-soft: #e5f0e9;
+  --ds-accent-soft-border: #c6ddcd;
+  --ds-hero: #0f3a27;
+  --ds-hero-stroke: #0f3a27;
+  --ds-on-hero: #ffffff;
+  --ds-on-hero-muted: #b9d6c5;
+  --ds-hero-pos: #8be7b3;
+  --ds-hero-divider: #2a5a43;
+  --ds-danger: #b42318;
+  --ds-danger-soft: #fce9e7;
+  --ds-warn: #954204;
+  --ds-warn-soft: #fcefdc;
+  --ds-info: #1d4ed8;
+  --ds-info-soft: #e7eefd;
+  --ds-pos: #13733a;
+  --ds-track: #e1e7df;
+  --ds-icon-bg: #eaefe8;
+  --ds-ok-dot: #1f9d62;
+  --ds-knob-off: #ffffff;
+  --ds-radius: 16px;
+  --ds-body: 16px;
+}
+
+.dark {
+  color-scheme: dark;
+  --ds-bg: #0b0b0c;
+  --ds-surface: #161618;
+  --ds-elevated: #1c1c1f;
+  --ds-border: #2c2c30;
+  --ds-ink: #f2f2f3;
+  --ds-muted: #b8b8be;
+  --ds-subtle: #9d9da4;
+  --ds-primary: #5fd394;
+  --ds-primary-deep: #5fd394;
+  --ds-accent: #5fd394;
+  --ds-btn: #5fd394;
+  --ds-on-btn: #05200f;
+  --ds-accent-soft: #18271e;
+  --ds-accent-soft-border: #2c2c30;
+  --ds-hero: #1c1c1f;
+  --ds-hero-stroke: #2c2c30;
+  --ds-on-hero: #f2f2f3;
+  --ds-on-hero-muted: #b8b8be;
+  --ds-hero-pos: #6edca0;
+  --ds-hero-divider: #2c2c30;
+  --ds-danger: #ff8e84;
+  --ds-danger-soft: #341b1a;
+  --ds-warn: #f4b860;
+  --ds-warn-soft: #30261a;
+  --ds-info: #93b7ff;
+  --ds-info-soft: #1b2233;
+  --ds-pos: #5fd394;
+  --ds-track: #2c2c30;
+  --ds-icon-bg: #232326;
+  --ds-ok-dot: #4ade80;
+  --ds-knob-off: #f2f2f3;
+}

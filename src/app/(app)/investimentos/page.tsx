@@ -1,144 +1,195 @@
 import { and, desc, eq } from "drizzle-orm"
 import { db } from "@/db"
-import { accounts, investmentMovements, investmentPositions } from "@/db/schema"
+import {
+  accounts,
+  balanceSnapshots,
+  categories,
+  investmentMovements,
+  investmentPositions,
+  transactions,
+} from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
-import { decMovement, decPosition } from "@/lib/crypto/rows"
+import { decAccount, decMovement, decPosition } from "@/lib/crypto/rows"
+import { currentYearMonth, monthBounds, todayYmd } from "@/lib/format"
 import {
-  type AssetClass,
-  type InvestmentMovement,
-  type InvestmentPosition,
-} from "@/lib/types"
-import { buildInvestmentEvolution } from "@/lib/investments/evolution"
+  accountIdsForBank,
+  balanceIdsForBank,
+  bankFromParams,
+  bankHeadlineSuffix,
+  groupAccountsByBank,
+} from "@/lib/banks"
+import { getCdiRates } from "@/lib/cdi"
 import {
-  formatRentabilidade,
-  positionCurrentValue,
-  positionInvestedValue,
-} from "@/lib/investments/value"
-import {
-  InvestimentosClient,
-  type AtivoView,
-  type MovimentoView,
-} from "@/components/investimentos-client"
+  groupTitles,
+  irBands,
+  periodCdiKpi,
+  titledPosition,
+} from "@/lib/investments/net"
+import { parseAccountMeta } from "@/lib/account-meta"
+import { buildReserve, recurringMonthlySpend } from "@/lib/reserve"
+import { roundCents, splitReserveNets } from "@/lib/money-math"
+import { InvestimentosClient } from "@/components/investimentos-client"
+import type { ClassifiableTxn as Txn } from "@/lib/txn-class"
 
-export default async function InvestimentosPage() {
+export default async function InvestimentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>
+}) {
   const { userId } = await requireUserOrRedirect()
   const crypto = await getOrCreateUserCrypto(userId)
-  const [positionRows, movementRows] = await Promise.all([
-    db
-      .select({
-        position: investmentPositions,
-        institution: accounts.institution,
-      })
-      .from(investmentPositions)
-      .innerJoin(accounts, eq(investmentPositions.account_id, accounts.id))
-      .where(
-        and(
-          eq(investmentPositions.user_id, userId),
-          eq(investmentPositions.is_active, true),
-          eq(accounts.type, "investment")
-        )
-      )
-      .orderBy(investmentPositions.id),
-    db
-      .select()
-      .from(investmentMovements)
-      .where(eq(investmentMovements.user_id, userId))
-      .orderBy(desc(investmentMovements.date), desc(investmentMovements.id)),
-  ])
+  const params = await searchParams
+  const bank = bankFromParams(params.bank)
+  const asOf = todayYmd()
+  const ym = currentYearMonth()
+  const monthStart = monthBounds(ym).start
+  const yearAgo = `${Number(asOf.slice(0, 4)) - 1}${asOf.slice(4)}`
 
-  const list = positionRows.map((row) => {
-    const p = decPosition(crypto, row.position)
-    return {
-      ...p,
-      institution: crypto.decryptFlex("institution", row.institution) ?? "",
-    }
-  }) as (InvestmentPosition & { institution: string })[]
+  const [positionRows, movementRows, accountRows, snapRows, txnRows, categoryRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(investmentPositions)
+        .where(
+          and(
+            eq(investmentPositions.user_id, userId),
+            eq(investmentPositions.is_active, true)
+          )
+        ),
+      db
+        .select()
+        .from(investmentMovements)
+        .where(eq(investmentMovements.user_id, userId))
+        .orderBy(desc(investmentMovements.date)),
+      db
+        .select()
+        .from(accounts)
+        .where(and(eq(accounts.user_id, userId), eq(accounts.is_active, true))),
+      db
+        .select()
+        .from(balanceSnapshots)
+        .where(eq(balanceSnapshots.user_id, userId)),
+      db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.user_id, userId))
+        .orderBy(desc(transactions.date))
+        .limit(4000),
+      db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(eq(categories.user_id, userId)),
+    ])
 
-  const movs = movementRows.map((m) =>
-    decMovement(crypto, m)
-  ) as InvestmentMovement[]
-
-  const firstAporteByPosition = new Map<string, string>()
-  for (const m of [...movs].reverse()) {
-    if (m.type !== "aporte" || !m.position_id) continue
-    if (!firstAporteByPosition.has(m.position_id)) {
-      firstAporteByPosition.set(m.position_id, m.date)
-    }
-  }
-
-  const ativos: AtivoView[] = list.map((p) => {
-    const valorAtual = positionCurrentValue(p)
-    const valorInvestido = positionInvestedValue(p)
-    const rendimento = valorAtual - valorInvestido
-    const rendimentoPct =
-      valorInvestido > 0 ? (rendimento / valorInvestido) * 100 : null
-
-    const investedAt =
-      p.purchase_date ?? firstAporteByPosition.get(p.id) ?? p.as_of
-
-    return {
-      id: p.id,
-      assetName: p.asset_name,
-      ticker: p.ticker,
-      assetClass: p.asset_class as AssetClass,
-      institution: p.institution,
-      investedAt,
-      rentabilidade: formatRentabilidade(
-        p.rate != null ? Number(p.rate) : null,
-        p.rate_type
-      ),
-      valorInvestido,
-      valorAtual,
-      rendimento,
-      rendimentoPct,
-      portfolioPct: 0,
-    }
+  const accountsDecoded = accountRows.map((a) => {
+    const d = decAccount(crypto, a)
+    return { ...d, extra: parseAccountMeta(d.extra_meta) }
   })
-  const currentTotal = ativos.reduce((sum, a) => sum + a.valorAtual, 0)
+  const banks = groupAccountsByBank(accountsDecoded)
+  const scopedIds =
+    accountIdsForBank(banks, bank) ??
+    banks.flatMap((g) => g.accountIds)
+  const balIds =
+    balanceIdsForBank(banks, bank) ??
+    banks.flatMap((g) => g.balanceAccountIds)
+  const bankSuffix = bankHeadlineSuffix(banks, bank)
+  const scopedAcc = new Set(scopedIds)
+  const balAcc = new Set(balIds)
+  const titles = positionRows
+    .filter((p) => balAcc.has(p.account_id))
+    .map((p) => titledPosition(decPosition(crypto, p), asOf))
+  const movs = movementRows
+    .filter((m) => scopedAcc.has(m.account_id))
+    .map((m) => decMovement(crypto, m))
+  const groups = groupTitles(titles)
+  const gross = roundCents(titles.reduce((s, t) => s + t.gross, 0))
+  const net = roundCents(titles.reduce((s, t) => s + t.net, 0))
+  const iof = roundCents(titles.reduce((s, t) => s + t.iof, 0))
+  const ir = roundCents(titles.reduce((s, t) => s + t.ir, 0))
+  const earnings = roundCents(titles.reduce((s, t) => s + t.earnings, 0))
+  const split = splitReserveNets(titles)
+  const liquid = split.liquid
+  const locked = split.locked
+  const excluded = split.excluded
 
-  for (const a of ativos) {
-    a.portfolioPct =
-      currentTotal > 0 ? (a.valorAtual / currentTotal) * 100 : 0
-  }
+  const checking = snapRows
+    .filter((s) => s.source_type === "checking" && balAcc.has(s.account_id))
+    .reduce((s, r) => s + crypto.decryptNum("balance", r.balance), 0)
+  const disponivel = roundCents(liquid + checking)
 
-  ativos.sort(
-    (a, b) => b.valorAtual - a.valorAtual || a.id.localeCompare(b.id)
+  const billLines = accountsDecoded
+    .filter((a) => a.type === "credit_card" && balAcc.has(a.id))
+    .map((a) => {
+      const snap = snapRows.find((s) => s.account_id === a.id)
+      const amount = snap ? crypto.decryptNum("balance", snap.balance) : 0
+      return { name: a.name, amount }
+    })
+    .filter((b) => b.amount > 0)
+
+  const catById = new Map(categoryRows.map((c) => [c.id, c.name]))
+  const txns: Txn[] = txnRows
+    .filter((t) => scopedAcc.has(t.account_id))
+    .map((t) => ({
+    ...t,
+    amount: crypto.decryptNum("amount", t.amount),
+    description: crypto.decryptFlex("description", t.description),
+    merchant: crypto.decryptFlex("merchant", t.merchant),
+    installment: crypto.decryptFlex("installment", t.installment),
+    notes: crypto.decryptFlex("notes", t.notes),
+    source_category: crypto.decryptFlex("source_category", t.source_category),
+    category_name: t.category_id ? catById.get(t.category_id) ?? null : null,
+    user_category_name: t.user_category_id
+      ? catById.get(t.user_category_id) ?? null
+      : null,
+  }))
+
+  const recurring = recurringMonthlySpend(txns, ym)
+  const reserve = buildReserve({
+    disponivel,
+    openBills: billLines,
+    recurringSpend: recurring,
+    excluded,
+  })
+
+  const rates = await getCdiRates(yearAgo, asOf)
+  const monthRates = rates.filter((r) => r.date >= monthStart && r.date <= asOf)
+  const lastPublished = monthRates.at(-1)?.date ?? asOf
+  const monthKpi = periodCdiKpi(
+    titles,
+    movs,
+    rates,
+    monthStart,
+    lastPublished
   )
-
-  const evolution = buildInvestmentEvolution(
-    ativos.map((a) => ({
-      purchaseDate: a.investedAt,
-      invested: a.valorInvestido,
-      current: a.valorAtual,
-    })),
-    12
-  )
-
-  const movimentos: MovimentoView[] = movs
-    .filter((m) => m.type === "aporte" || m.type === "resgate")
-    .map((m) => ({
-      id: m.id,
-      date: m.date,
-      type: m.type as "aporte" | "resgate",
-      amount: Number(m.amount) || 0,
-    }))
+  const yearKpi = periodCdiKpi(titles, movs, rates, yearAgo, lastPublished)
+  const vencimentos = titles
+    .filter((t) => t.dueDate && t.dueDate >= asOf)
+    .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
+    .slice(0, 8)
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Investimentos</h1>
-        <p className="text-sm text-muted-foreground">
-          Patrimônio, ativos e movimentações via Open Finance.
-        </p>
-      </div>
-
-      <InvestimentosClient
-        currentTotal={currentTotal}
-        evolution={evolution}
-        ativos={ativos}
-        movimentos={movimentos}
-      />
-    </div>
+    <InvestimentosClient
+      net={net}
+      gross={gross}
+      iof={iof}
+      ir={ir}
+      earnings={earnings}
+      liquid={liquid}
+      locked={locked}
+      excluded={excluded}
+      groups={groups}
+      monthKpi={monthKpi}
+      yearKpi={yearKpi}
+      reserve={reserve}
+      vencimentos={vencimentos.map((t) => ({
+        date: t.dueDate!,
+        name: t.name,
+        gross: t.gross,
+      }))}
+      bands={irBands(titles)}
+      iofNotes={titles.filter((t) => t.iof > 0)}
+      bankSuffix={bankSuffix}
+    />
   )
 }
