@@ -12,6 +12,15 @@ export type PluggyAccount = {
   creditData?: {
     brand?: string
     level?: string
+    creditLimit?: number | null
+    availableCreditLimit?: number | null
+    balanceCloseDate?: string | null
+    balanceDueDate?: string | null
+  } | null
+  bankData?: {
+    transferNumber?: string | null
+    closingBalance?: number | null
+    automaticallyInvestedBalance?: number | null
   } | null
 }
 
@@ -50,6 +59,7 @@ export type PluggyInvestment = {
   date: string
   purchaseDate?: string | null
   issueDate?: string | null
+  dueDate?: string | null
   rate?: number | null
   rateType?: string | null
   status?: "ACTIVE" | "PENDING" | "TOTAL_WITHDRAWAL" | null

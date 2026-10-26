@@ -25,6 +25,20 @@ export type Account = {
   currency: string
   is_active: boolean
   pluggy_account_id: string | null
+  extra_meta?: AccountExtraMeta | null
+}
+
+export type AccountExtraMeta = {
+  creditLimit?: number | null
+  availableCreditLimit?: number | null
+  balanceCloseDate?: string | null
+  balanceDueDate?: string | null
+  brand?: string | null
+  level?: string | null
+  transferNumber?: string | null
+  compe?: string | null
+  institutionName?: string | null
+  connectorName?: string | null
 }
 
 export type Category = {
@@ -54,6 +68,7 @@ export type Transaction = {
   description: string
   amount: number
   category_id: string | null
+  user_category_id: string | null
   merchant: string | null
   installment: string | null
   external_hash: string
@@ -80,6 +95,7 @@ export type Goal = {
   deadline: string | null
   color: string | null
   is_archived: boolean
+  created_at?: Date | string | null
 }
 
 export type InvestmentPosition = {
@@ -98,8 +114,10 @@ export type InvestmentPosition = {
   rate_type: string | null
   amount_original: number | null
   amount_withdrawal: number | null
+  due_date: string | null
   external_hash: string
   is_active: boolean
+  exclude_from_reserve: boolean
 }
 
 export type InvestmentMovement = {

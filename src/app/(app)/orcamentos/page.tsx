@@ -1,11 +1,19 @@
 import { and, eq, gte, lte } from "drizzle-orm"
 import { db } from "@/db"
-import { budgets, categories, transactions } from "@/db/schema"
+import { accounts, budgets, categories, transactions } from "@/db/schema"
 import { requireUserOrRedirect } from "@/lib/auth-session"
 import { getOrCreateUserCrypto } from "@/lib/crypto/user-keys"
 import { OrcamentosClient } from "@/components/orcamentos-client"
 import { currentYearMonth, monthBounds } from "@/lib/format"
+import { decorateTransactions, spendCategoryId } from "@/lib/txn-class"
+import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
 import type { Budget, Category } from "@/lib/types"
+import { decAccount } from "@/lib/crypto/rows"
+import {
+  dedupeTransactions,
+  groupAccountsByBank,
+  primaryAccountIds,
+} from "@/lib/banks"
 
 export default async function OrcamentosPage({
   searchParams,
@@ -18,7 +26,7 @@ export default async function OrcamentosPage({
   const yearMonth = params.mes || currentYearMonth()
   const { start, end } = monthBounds(yearMonth)
 
-  const [budgetRows, categoryRows, txns] = await Promise.all([
+  const [budgetRows, categoryRows, txns, accountRows] = await Promise.all([
     db
       .select({
         budget: budgets,
@@ -36,54 +44,92 @@ export default async function OrcamentosPage({
       .orderBy(categories.name, categories.id),
     db
       .select({
+        id: transactions.id,
         category_id: transactions.category_id,
+        user_category_id: transactions.user_category_id,
+        account_id: transactions.account_id,
+        date: transactions.date,
         amount: transactions.amount,
         is_transfer: transactions.is_transfer,
+        source_type: transactions.source_type,
+        source_category: transactions.source_category,
+        description: transactions.description,
+        merchant: transactions.merchant,
+        installment: transactions.installment,
+        notes: transactions.notes,
       })
       .from(transactions)
       .where(
         and(
           eq(transactions.user_id, userId),
           gte(transactions.date, start),
-          lte(transactions.date, end),
-          eq(transactions.is_transfer, false)
+          lte(transactions.date, end)
         )
       ),
+    db
+      .select()
+      .from(accounts)
+      .where(eq(accounts.user_id, userId)),
   ])
 
+  const catById = new Map(categoryRows.map((c) => [c.id, c.name]))
+  const banks = groupAccountsByBank(accountRows.map((a) => decAccount(crypto, a)))
+  const decorated = decorateTransactions(
+    dedupeTransactions(
+    txns.map((t) => ({
+      id: t.id,
+      category_id: t.category_id,
+      user_category_id: t.user_category_id,
+      account_id: t.account_id,
+      date: t.date,
+      amount: crypto.decryptNum("amount", t.amount),
+      is_transfer: t.is_transfer,
+      source_type: t.source_type,
+      source_category: crypto.decryptFlex("source_category", t.source_category),
+      description: crypto.decryptFlex("description", t.description),
+      merchant: crypto.decryptFlex("merchant", t.merchant),
+      installment: crypto.decryptFlex("installment", t.installment),
+      notes: crypto.decryptFlex("notes", t.notes),
+      category_name: t.category_id ? catById.get(t.category_id) : null,
+      user_category_name: t.user_category_id
+        ? catById.get(t.user_category_id) ?? null
+        : null,
+    })),
+      { primaryAccountIds: primaryAccountIds(banks) }
+    ),
+    { yearMonth }
+  )
   const spentByCat = new Map<string, number>()
-  for (const t of txns) {
-    if (!t.category_id) continue
-    const amt = crypto.decryptNum("amount", t.amount)
-    if (amt >= 0) continue
-    spentByCat.set(t.category_id, (spentByCat.get(t.category_id) ?? 0) + amt)
+  for (const t of decorated) {
+    if (t.class.hide || !t.class.countInCategory) continue
+    if (!t.class.expenseDelta) continue
+    const catId = spendCategoryId(t)
+    if (!catId) continue
+    spentByCat.set(catId, (spentByCat.get(catId) ?? 0) + t.class.expenseDelta)
   }
 
   const rows = budgetRows.map((b) => ({
     ...b.budget,
     limit_amount: crypto.decryptNum("limit_amount", b.budget.limit_amount),
     categories: b.category_name
-      ? { name: b.category_name, color: b.category_color }
+      ? { name: categoryLabelPt(b.category_name), color: b.category_color }
       : null,
     spent: spentByCat.get(b.budget.category_id) ?? 0,
   }))
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Orçamentos</h1>
-        <p className="text-sm text-muted-foreground">
-          Limites mensais e acompanhamento de gastos.
-        </p>
-      </div>
-      <OrcamentosClient
+    <OrcamentosClient
         budgets={rows as (Budget & {
           categories?: { name: string; color: string | null } | null
           spent: number
         })[]}
-        categories={categoryRows as Category[]}
+        categories={
+          (categoryRows as Category[]).map((c) => ({
+            ...c,
+            name: categoryLabelPt(c.name),
+          }))
+        }
         yearMonth={yearMonth}
       />
-    </div>
   )
 }

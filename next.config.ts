@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   // Self-contained server bundle for the Docker image (ignored by Vercel).
   output: "standalone",
   serverExternalPackages: [

@@ -11,9 +11,11 @@ import {
   imports,
   investmentMovements,
   investmentPositions,
+  adjustments,
   pluggyConnections,
   profiles,
   transactions,
+  userSettings,
 } from "@/db/schema"
 import type { UserCrypto } from "./codec"
 import { isEnvelope } from "./envelope"
@@ -107,6 +109,7 @@ export async function reencryptUserData(
     const name = touchText("name", row.name)
     const institution = touchText("institution", row.institution)
     const last4 = touchText("last4", row.last4)
+    const extra = touchText("extra_meta", row.extra_meta)
     const pid = touchText("pluggy_account_id", row.pluggy_account_id)
     const plainPid = from.decryptFlex(
       "pluggy_account_id",
@@ -118,6 +121,7 @@ export async function reencryptUserData(
       name.changed ||
       institution.changed ||
       last4.changed ||
+      extra.changed ||
       pid.changed ||
       bidxChanged
     ) {
@@ -127,6 +131,7 @@ export async function reencryptUserData(
           name: name.next ?? row.name,
           institution: institution.next ?? row.institution,
           last4: last4.next,
+          extra_meta: extra.next,
           pluggy_account_id: pid.next,
           pluggy_account_id_bidx: bidx,
         })
@@ -348,6 +353,42 @@ export async function reencryptUserData(
         .update(profiles)
         .set({ nome: nome.next })
         .where(eq(profiles.id, userId))
+      updated += 1
+    } else skipped += 1
+  }
+
+  const settingRows = await db
+    .select()
+    .from(userSettings)
+    .where(eq(userSettings.user_id, userId))
+  for (const row of settingRows) {
+    const payload = touchText("payload", row.payload)
+    if (payload.changed) {
+      await db
+        .update(userSettings)
+        .set({ payload: payload.next ?? row.payload, updated_at: new Date() })
+        .where(eq(userSettings.user_id, userId))
+      updated += 1
+    } else skipped += 1
+  }
+
+  const adjRows = await db
+    .select()
+    .from(adjustments)
+    .where(eq(adjustments.user_id, userId))
+  for (const row of adjRows) {
+    const category = touchText("category", row.category)
+    const amount = touchNum("amount", row.amount)
+    const notes = touchText("notes", row.notes)
+    if (category.changed || amount.changed || notes.changed) {
+      await db
+        .update(adjustments)
+        .set({
+          category: category.next ?? row.category,
+          amount: amount.next ?? row.amount,
+          notes: notes.next,
+        })
+        .where(eq(adjustments.id, row.id))
       updated += 1
     } else skipped += 1
   }

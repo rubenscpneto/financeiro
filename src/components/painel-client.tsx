@@ -1,38 +1,12 @@
 "use client"
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell } from "recharts"
-import { formatBRL } from "@/lib/format"
-
-const flowConfig = {
-  entradas: { label: "Entradas", color: "var(--chart-2)" },
-  saidas: { label: "Saídas", color: "var(--chart-1)" },
-} satisfies ChartConfig
-
-const catConfig = {
-  value: { label: "Valor", color: "var(--chart-1)" },
-} satisfies ChartConfig
-
-const COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-]
+import Link from "next/link"
+import { DsCard, Bar, PageTitle, SectionHead } from "@/components/design/primitives"
+import { AppMoney } from "@/components/app-money"
+import { brl } from "@/components/design/money-display"
+import { useHideValues } from "@/components/hide-values-provider"
+import { budgetStatus } from "@/lib/design/budget-status"
+import { monthLabelPt } from "@/lib/format"
 
 export function PainelClient({
   netWorth,
@@ -41,10 +15,13 @@ export function PainelClient({
   investments,
   income,
   expense,
-  flowByDay,
+  flowByDay: _flowByDay,
   topCategories,
   budgets,
   goals,
+  bankName = null,
+  bankSuffix = "",
+  yearMonth,
 }: {
   netWorth: number
   checking: number
@@ -56,155 +33,158 @@ export function PainelClient({
   topCategories: { name: string; value: number; color?: string | null }[]
   budgets: { name: string; spent: number; limit: number }[]
   goals: { name: string; current: number; target: number }[]
+  bankName?: string | null
+  bankSuffix?: string
+  yearMonth: string
 }) {
+  const { hidden } = useHideValues()
+  const monthBudget = budgets.reduce((s, b) => s + b.limit, 0)
+  const monthLabel = monthLabelPt(yearMonth)
+  const suffix = bankSuffix || (bankName ? ` no ${bankName}` : "")
+  const spentRatio = monthBudget > 0 ? expense / monthBudget : 0
+  void _flowByDay
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardDescription>Patrimônio líquido</CardDescription>
-            <CardTitle className="text-2xl">{formatBRL(netWorth)}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Conta {formatBRL(checking)} − cartão {formatBRL(creditDebt)} + invest.{" "}
-            {formatBRL(investments)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Entradas no mês</CardDescription>
-            <CardTitle className="text-2xl text-emerald-600">
-              {formatBRL(income)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Saídas no mês</CardDescription>
-            <CardTitle className="text-2xl text-red-600">
-              {formatBRL(expense)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Saldo do mês</CardDescription>
-            <CardTitle className="text-2xl">
-              {formatBRL(income - expense)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
+    <div className="flex flex-col gap-4">
+      <PageTitle
+        subtitle={`Visão geral de ${monthLabel} · teto por categoria`}
+      />
+
+      <div className="grid gap-3 lg:grid-cols-4">
+        <DsCard className="gap-2 border-ds-hero-stroke bg-ds-hero p-5 text-ds-on-hero lg:col-span-1">
+          <p className="text-sm text-ds-on-hero-muted">Quanto você tem{suffix}</p>
+          <p className="text-[32px] leading-none font-semibold tracking-tight">
+            <AppMoney value={netWorth} className="text-ds-on-hero" />
+          </p>
+          <p className="text-sm text-ds-on-hero-muted">
+            Conta + investimentos − cartão
+          </p>
+        </DsCard>
+        <DsCard className="gap-1.5">
+          <p className="text-sm text-ds-muted">Na conta</p>
+          <p className="text-2xl font-semibold">
+            <AppMoney value={checking} />
+          </p>
+          <p className="text-sm text-ds-muted">
+            Entrou <AppMoney value={income} /> este mês
+          </p>
+        </DsCard>
+        <DsCard className="gap-1.5">
+          <p className="text-sm text-ds-muted">Investido</p>
+          <p className="text-2xl font-semibold">
+            <AppMoney value={investments} />
+          </p>
+          <Link href="/investimentos" className="text-sm font-semibold text-ds-accent">
+            Ver carteira
+          </Link>
+        </DsCard>
+        <DsCard className="gap-1.5">
+          <p className="text-sm text-ds-muted">Cartão a pagar</p>
+          <p className="text-2xl font-semibold">
+            <AppMoney value={creditDebt} />
+          </p>
+          <p className="text-sm text-ds-muted">Fatura atual</p>
+        </DsCard>
       </div>
+
+      <DsCard>
+        <p className="text-sm text-ds-muted">Quanto gastou no mês</p>
+        <p className="text-[28px] font-semibold">
+          <AppMoney value={expense} />
+        </p>
+        <p className="text-sm text-ds-muted">
+          de {brl(monthBudget, hidden)} em tetos de categoria
+        </p>
+        <Bar pct={spentRatio} tone={spentRatio >= 1 ? "danger" : spentRatio >= 0.85 ? "warn" : "ok"} />
+      </DsCard>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Fluxo diário</CardTitle>
-            <CardDescription>Entradas e saídas do mês</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer config={flowConfig} className="h-64 w-full">
-              <BarChart data={flowByDay}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} width={40} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="entradas" fill="var(--color-entradas)" radius={4} />
-                <Bar dataKey="saidas" fill="var(--color-saidas)" radius={4} />
-              </BarChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Top categorias</CardTitle>
-            <CardDescription>Despesas do mês</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {topCategories.length ? (
-              <ChartContainer config={catConfig} className="mx-auto h-64 w-full">
-                <PieChart>
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Pie
-                    data={topCategories}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={50}
-                    outerRadius={90}
-                  >
-                    {topCategories.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ChartContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Sem despesas categorizadas neste mês.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Orçamentos</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {budgets.map((b) => {
-              const pct =
-                b.limit > 0 ? Math.min(100, (b.spent / b.limit) * 100) : 0
+        <DsCard>
+          <SectionHead title="Limites do mês" action="Ver todos" />
+          {budgets.length ? (
+            budgets.map((b) => {
+              const status = budgetStatus(b.spent, b.limit)
               return (
-                <div key={b.name} className="flex flex-col gap-1">
-                  <div className="flex justify-between text-sm">
-                    <span>{b.name}</span>
-                    <span className="text-muted-foreground">
-                      {formatBRL(b.spent)} / {formatBRL(b.limit)}
-                    </span>
+                <div key={b.name} className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-base font-medium">{b.name}</p>
+                    <p
+                      className={
+                        status.tone === "danger"
+                          ? "text-sm font-semibold text-ds-danger"
+                          : status.tone === "warn"
+                            ? "text-sm font-semibold text-ds-warn"
+                            : "text-sm font-semibold text-ds-accent"
+                      }
+                    >
+                      {status.label}
+                    </p>
                   </div>
-                  <Progress value={pct} />
+                  <Bar pct={status.pct} tone={status.tone} />
+                  <p className="text-sm text-ds-muted">
+                    Gastou {brl(b.spent, hidden)} de {brl(b.limit, hidden)}
+                  </p>
                 </div>
               )
-            })}
-            {budgets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Defina orçamentos em Orçamentos.
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
+            })
+          ) : (
+            <p className="text-sm text-ds-muted">
+              Defina tetos por categoria em Planejar gastos.
+            </p>
+          )}
+          <Link href="/orcamentos" className="text-[15px] font-semibold text-ds-accent">
+            Abrir orçamentos
+          </Link>
+        </DsCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Metas</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {goals.map((g) => {
-              const pct =
-                g.target > 0 ? Math.min(100, (g.current / g.target) * 100) : 0
+        <DsCard>
+          <SectionHead title="Metas" />
+          {goals.length ? (
+            goals.map((g) => {
+              const pct = g.target > 0 ? g.current / g.target : 0
               return (
-                <div key={g.name} className="flex flex-col gap-1">
-                  <div className="flex justify-between text-sm">
-                    <span>{g.name}</span>
-                    <span className="text-muted-foreground">
-                      {formatBRL(g.current)} / {formatBRL(g.target)}
-                    </span>
+                <div key={g.name} className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-base font-medium">{g.name}</p>
+                    <AppMoney value={g.current} className="text-sm font-semibold" />
                   </div>
-                  <Progress value={pct} />
+                  <Bar pct={pct} tone="ok" />
+                  <p className="text-sm text-ds-muted">
+                    de {brl(g.target, hidden)}
+                  </p>
                 </div>
               )
-            })}
-            {goals.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Crie metas em Metas.
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
+            })
+          ) : (
+            <p className="text-sm text-ds-muted">Crie metas em Metas.</p>
+          )}
+          <Link href="/metas" className="text-[15px] font-semibold text-ds-accent">
+            Ver metas
+          </Link>
+        </DsCard>
       </div>
+
+      <DsCard>
+        <SectionHead title="Top categorias" />
+        {topCategories.length ? (
+          topCategories.map((c) => {
+            const max = topCategories[0]?.value || 1
+            return (
+              <div key={c.name} className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-base font-medium">{c.name}</p>
+                  <AppMoney value={c.value} className="text-sm font-semibold" />
+                </div>
+                <Bar pct={c.value / max} tone="ink" />
+              </div>
+            )
+          })
+        ) : (
+          <p className="text-sm text-ds-muted">
+            Sem despesas categorizadas neste mês.
+          </p>
+        )}
+      </DsCard>
     </div>
   )
 }

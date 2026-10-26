@@ -14,21 +14,17 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+  DsCard,
+  PageTitle,
+  dsControlClass,
+} from "@/components/design/primitives"
+import { categoryLabelPt } from "@/lib/pluggy-categories-pt"
+
+const KIND_LABEL: Record<string, string> = {
+  expense: "Despesa",
+  income: "Receita",
+  transfer: "Transferência",
+}
 
 export function CategoriasClient({
   categories,
@@ -40,18 +36,17 @@ export function CategoriasClient({
   const [pending, start] = useTransition()
 
   return (
-    <Tabs defaultValue="categorias">
-      <TabsList>
-        <TabsTrigger value="categorias">Categorias</TabsTrigger>
-        <TabsTrigger value="regras">Regras</TabsTrigger>
-      </TabsList>
+    <div className="flex flex-col gap-4">
+      <PageTitle subtitle="Organize gastos e regras automáticas." />
+      <Tabs defaultValue="categorias">
+        <TabsList>
+          <TabsTrigger value="categorias">Categorias</TabsTrigger>
+          <TabsTrigger value="regras">Regras</TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="categorias" className="flex flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Nova categoria</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <TabsContent value="categorias" className="flex flex-col gap-4">
+          <DsCard>
+            <h2 className="text-lg font-semibold">Nova categoria</h2>
             <form
               action={(fd) => {
                 start(async () => {
@@ -71,7 +66,7 @@ export function CategoriasClient({
                   <select
                     id="kind"
                     name="kind"
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                    className={`${dsControlClass} w-full`}
                     defaultValue="expense"
                   >
                     <option value="expense">Despesa</option>
@@ -81,75 +76,61 @@ export function CategoriasClient({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="color">Cor</FieldLabel>
-                  <Input id="color" name="color" type="color" defaultValue="#64748b" />
+                  <Input id="color" name="color" type="color" defaultValue="#1e6b47" />
                 </Field>
                 <Button type="submit" disabled={pending}>
                   Adicionar
                 </Button>
               </FieldGroup>
             </form>
-          </CardContent>
-        </Card>
+          </DsCard>
 
-        <Card>
-          <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {categories.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="flex items-center gap-2">
-                      <span
-                        className="size-3 rounded-full"
-                        style={{ background: c.color ?? "#94a3b8" }}
-                      />
-                      {c.name}
-                      {c.is_system ? (
-                        <Badge variant="secondary">Sistema</Badge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>{c.kind}</TableCell>
-                    <TableCell>
-                      {!c.is_system ? (
-                        <form
-                          action={(fd) => {
-                            start(async () => {
-                              const res = await deleteCategoryAction(fd)
-                              if (res.error) toast.error(res.error)
-                              else toast.success("Removida")
-                            })
-                          }}
-                        >
-                          <input type="hidden" name="id" value={c.id} />
-                          <Button type="submit" size="sm" variant="destructive">
-                            Excluir
-                          </Button>
-                        </form>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </TabsContent>
+          <DsCard className="gap-0">
+            {categories.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-3 border-b border-ds-border py-3 last:border-0"
+              >
+                <span
+                  className="size-3.5 shrink-0 rounded-full"
+                  style={{ background: c.color ?? "#94a3b8" }}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-medium">
+                    {categoryLabelPt(c.name)}
+                  </p>
+                  <p className="text-sm text-ds-muted">
+                    {KIND_LABEL[c.kind] ?? c.kind}
+                    {c.is_system ? " · Sistema" : ""}
+                  </p>
+                </div>
+                {!c.is_system ? (
+                  <form
+                    action={(fd) => {
+                      start(async () => {
+                        const res = await deleteCategoryAction(fd)
+                        if (res.error) toast.error(res.error)
+                        else toast.success("Removida")
+                      })
+                    }}
+                  >
+                    <input type="hidden" name="id" value={c.id} />
+                    <Button type="submit" size="sm" variant="destructive">
+                      Excluir
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
+            ))}
+          </DsCard>
+        </TabsContent>
 
-      <TabsContent value="regras" className="flex flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Nova regra</CardTitle>
-            <CardDescription>
+        <TabsContent value="regras" className="flex flex-col gap-4">
+          <DsCard>
+            <h2 className="text-lg font-semibold">Nova regra</h2>
+            <p className="text-sm text-ds-muted">
               Se a descrição contiver o padrão, aplica a categoria automaticamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </p>
             <form
               action={(fd) => {
                 start(async () => {
@@ -174,12 +155,12 @@ export function CategoriasClient({
                   <select
                     id="category_id"
                     name="category_id"
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                    className={`${dsControlClass} w-full`}
                     required
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {categoryLabelPt(c.name)}
                       </option>
                     ))}
                   </select>
@@ -198,51 +179,45 @@ export function CategoriasClient({
                 </Button>
               </FieldGroup>
             </form>
-          </CardContent>
-        </Card>
+          </DsCard>
 
-        <Card>
-          <CardContent className="pt-6">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Padrão</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Prioridade</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rules.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>{r.match_pattern}</TableCell>
-                    <TableCell>
-                      {r.categories?.name ?? r.category_id.slice(0, 8)}
-                    </TableCell>
-                    <TableCell>{r.priority}</TableCell>
-                    <TableCell>
-                      <form
-                        action={(fd) => {
-                          start(async () => {
-                            const res = await deleteRuleAction(fd)
-                            if (res.error) toast.error(res.error)
-                            else toast.success("Removida")
-                          })
-                        }}
-                      >
-                        <input type="hidden" name="id" value={r.id} />
-                        <Button type="submit" size="sm" variant="destructive">
-                          Excluir
-                        </Button>
-                      </form>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+          <DsCard className="gap-0">
+            {rules.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center gap-3 border-b border-ds-border py-3 last:border-0"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-medium">{r.match_pattern}</p>
+                  <p className="text-sm text-ds-muted">
+                    {categoryLabelPt(r.categories?.name ?? "Categoria")} ·
+                    prioridade {r.priority}
+                  </p>
+                </div>
+                <form
+                  action={(fd) => {
+                    start(async () => {
+                      const res = await deleteRuleAction(fd)
+                      if (res.error) toast.error(res.error)
+                      else toast.success("Removida")
+                    })
+                  }}
+                >
+                  <input type="hidden" name="id" value={r.id} />
+                  <Button type="submit" size="sm" variant="destructive">
+                    Excluir
+                  </Button>
+                </form>
+              </div>
+            ))}
+            {rules.length === 0 ? (
+              <p className="py-6 text-center text-sm text-ds-muted">
+                Nenhuma regra ainda.
+              </p>
+            ) : null}
+          </DsCard>
+        </TabsContent>
+      </Tabs>
+    </div>
   )
 }

@@ -7,6 +7,7 @@ export function encAccount(
     institution: string
     last4: string | null
     pluggy_account_id?: string | null
+    extra_meta?: string | null
   }
 ) {
   return {
@@ -15,6 +16,7 @@ export function encAccount(
     last4: c.encryptOpt("last4", row.last4),
     pluggy_account_id: c.encryptOpt("pluggy_account_id", row.pluggy_account_id),
     pluggy_account_id_bidx: c.blindIndexOpt(row.pluggy_account_id ?? null),
+    extra_meta: c.encryptOpt("extra_meta", row.extra_meta),
   }
 }
 
@@ -23,6 +25,7 @@ export function decAccount<T extends {
   institution: string
   last4: string | null
   pluggy_account_id?: string | null
+  extra_meta?: string | null
 }>(c: UserCrypto, row: T): T {
   return {
     ...row,
@@ -33,6 +36,7 @@ export function decAccount<T extends {
       "pluggy_account_id",
       row.pluggy_account_id ?? null
     ),
+    extra_meta: c.decryptFlex("extra_meta", row.extra_meta ?? null),
   }
 }
 
@@ -157,6 +161,30 @@ export function encMovement(
     description: c.encryptOpt("description", row.description),
     amount: c.encryptNum("amount", row.amount),
     external_hash: c.blindIndex(row.external_hash),
+  }
+}
+
+export function encAdjustment(
+  c: UserCrypto,
+  row: { category: string; amount: number | string; notes?: string | null }
+) {
+  return {
+    category: c.encrypt("category", row.category),
+    amount: c.encryptNum("amount", row.amount),
+    notes: c.encryptOpt("notes", row.notes),
+  }
+}
+
+export function decAdjustment<T extends {
+  category: string
+  amount: string | number
+  notes?: string | null
+}>(c: UserCrypto, row: T): T & { amount: number } {
+  return {
+    ...row,
+    category: c.decryptFlex("category", row.category) ?? row.category,
+    amount: c.decryptNum("amount", row.amount),
+    notes: c.decryptFlex("notes", row.notes),
   }
 }
 

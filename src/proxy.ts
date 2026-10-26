@@ -1,8 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
+import { isDesignGalleryPublic } from "@/lib/design/gallery-access"
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
+  if (path.startsWith("/design") && isDesignGalleryPublic(process.env)) {
+    return NextResponse.next()
+  }
+
   const isPublicApi =
     path.startsWith("/api/cron/") ||
     path.startsWith("/api/webhooks/") ||
@@ -21,7 +26,11 @@ export function proxy(request: NextRequest) {
     path === "/auth/cadastro" ||
     path === "/auth/esqueci-senha"
 
-  if (sessionCookie && authBounceWhenLoggedIn) {
+  if (
+    sessionCookie &&
+    authBounceWhenLoggedIn &&
+    request.nextUrl.searchParams.get("logout") !== "1"
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = "/painel"
     return NextResponse.redirect(url)
